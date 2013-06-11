@@ -14,7 +14,12 @@ IMU::IMU() : io() {
 
 IMU::~IMU() {
 
-  if (serial!=NULL) delete serial;
+  if (serial!=NULL) {
+
+	  serial->close();
+	  delete serial;
+
+  }
 
   cout<<"class destroyed"<<endl;
 

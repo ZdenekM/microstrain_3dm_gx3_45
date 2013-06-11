@@ -1,0 +1,19 @@
+<package>
+  <description brief="microstrain_3dm_gx3_45">
+
+     Driver for Microstrain 3DM-GX3-45
+
+  </description>
+  <author>Zdenek Materna (imaterna@fit.vutbr.cz)</author>
+  <license>GPL</license>
+  <review status="unreviewed" notes=""/>
+  <url>https://github.com/ZdenekM/microstrain_3dm_gx3_45</url>
+  <depend package="roscpp"/>
+  <depend package="sensor_msgs"/>
+  <depend package="tf"/>
+  <depend package="geometry_msgs"/>
+
+
+</package>
+
+

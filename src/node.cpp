@@ -3,6 +3,7 @@
 
 using namespace microstrain_3dm_gx3_45;
 using namespace std;
+using namespace boost;
 
 int main(int argc, char **argv)
 {
@@ -19,9 +20,14 @@ int main(int argc, char **argv)
 
   ROS_INFO("Started.");
 
-  //imu.test();
+  imu.setTimeout(posix_time::seconds(5));
 
-  ros::spin();
+  if (imu.ping()) ROS_INFO("Device responds");
+  else ROS_WARN("No reply");
+
+  ROS_INFO("Finished");
+
+  imu.closePort();
 
   return 0;
 

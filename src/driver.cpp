@@ -202,10 +202,66 @@ bool IMU::ping() {
 
 	recv = read(n);
 
-	//if (!crcCheck(recv)) {cout<<"crc failed"<<endl; return false;}
+	if (!crcCheck(recv)) return false;
 
 	if ( ((uint8_t)recv[2]==CMD_SET_BASIC) && ((uint8_t)recv[5]==DESC_ACK) && ((uint8_t)recv[6]==BASIC_PING) ) return true;
 	else return false;
+
+}
+
+bool IMU::selfTest() {
+
+	posix_time::time_duration timeout_orig = timeout;
+
+	setTimeout(posix_time::seconds(6));
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_BASIC);
+	data.push_back(0x02);
+	data.push_back(0x02);
+	data.push_back(BASIC_DEV_BUILTIN_TEST);
+
+	crc(data);
+	write(data);
+
+	tbyte_array recv;
+	size_t n = 16;
+
+	recv = read(n);
+
+	if (!crcCheck(recv)) {
+
+		//cout << "crc failed" << endl;
+		setTimeout(timeout_orig);
+		return false;
+
+	}
+
+	if ((uint8_t)recv[6]!=BASIC_DEV_BUILTIN_TEST) {
+
+		//cout << "error code" << endl;
+		setTimeout(timeout_orig);
+		return false;
+
+	}
+
+
+	setTimeout(timeout_orig);
+
+	if (recv[10]==0 && recv[11]==0 && recv[12]==0 && recv[13]==0) return true;
+	else {
+
+		//TODO give some description of error
+
+		//cout << static_cast<int>(recv[10]) << ", " << static_cast<int>(recv[11]) << ", " << static_cast<int>(recv[12]) << ", " << static_cast<int>(recv[13]) << endl;
+
+		return false;
+
+	}
+
 
 }
 
@@ -214,7 +270,7 @@ bool IMU::crcCheck(tbyte_array& arr) {
 	unsigned char b1=0;
 	unsigned char b2=0;
 
-	cout << arr.size() << endl;
+	//cout << arr.size() << endl;
 
 	for(unsigned int i=0; i<(arr.size()-2); i++)
 	{

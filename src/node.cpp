@@ -25,6 +25,11 @@ int main(int argc, char **argv)
   if (imu.ping()) ROS_INFO("Device responds");
   else ROS_WARN("No reply");
 
+  ROS_INFO("Running selftest (can take up to 5 seconds).");
+
+  if (imu.selfTest()) ROS_INFO("Selftest passed.");
+  else ROS_ERROR("Selftest failed.");
+
   ROS_INFO("Finished");
 
   imu.closePort();

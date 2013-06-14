@@ -83,8 +83,12 @@ namespace microstrain_3dm_gx3_45 {
       void setTimeout(const boost::posix_time::time_duration& t);
 
       bool ping();
+
+      bool selfTest();
     
     private:
+
+    protected:
 
       void crc(tbyte_array& arr);
       bool crcCheck(tbyte_array& arr);
@@ -135,8 +139,6 @@ namespace microstrain_3dm_gx3_45 {
       enum ReadResult { resultInProgress, resultSuccess, resultError, resultTimeoutExpired};
 
       enum ReadResult result;
-    
-    protected:
 
 
   };

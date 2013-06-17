@@ -18,17 +18,62 @@ int main(int argc, char **argv)
 
   }
 
-  ROS_INFO("Started.");
+  ROS_INFO("Pinging device...");
 
   imu.setTimeout(posix_time::seconds(5));
 
-  if (imu.ping()) ROS_INFO("Device responds");
-  else ROS_WARN("No reply");
+  if (imu.ping()) ROS_INFO("Device responds.");
+  else {
+
+  	  string msg = "...";
+
+  	  while(msg!="") {
+
+  		  msg = imu.getLastError();
+  		  ROS_ERROR("Ping failed: %s",msg.c_str());
+
+  	  }
+
+  }
+
+  ROS_INFO("Checking device status...");
+
+  if (imu.devStatus()) ROS_INFO("Device status checked.");
+  else {
+
+	  string msg;
+
+	  do {
+
+		  msg = imu.getLastError();
+		  if (msg!="") ROS_ERROR("Device status: %s",msg.c_str());
+
+	  } while (msg!="");
+
+	  imu.closePort();
+	  return 0;
+
+  }
 
   ROS_INFO("Running selftest (can take up to 5 seconds).");
 
   if (imu.selfTest()) ROS_INFO("Selftest passed.");
-  else ROS_ERROR("Selftest failed.");
+  else {
+
+	  string msg;
+
+	  do {
+
+		  msg = imu.getLastError();
+		  if (msg!="") ROS_ERROR("Selftest failed: %s",msg.c_str());
+
+	  } while(msg!="");
+
+	  imu.closePort();
+	  return 0;
+
+  }
+
 
   ROS_INFO("Finished");
 

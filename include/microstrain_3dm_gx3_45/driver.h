@@ -41,19 +41,39 @@ namespace microstrain_3dm_gx3_45 {
 
 	  enum cmd_set_basic {
 
-		  BASIC_PING = 0x01,
-		  BASIC_SET_TO_IDLE = 0x02,
-		  BASIC_GET_DEV_INFO = 0x03,
-		  BASIC_GET_DEV_DESC_SETS = 0x04,
-		  BASIC_DEV_BUILTIN_TEST = 0x05,
-		  BASIC_RESUME = 0x06,
-		  BASIC_RESET = 0x7E
+		  CMD_BASIC_PING = 0x01,
+		  CMD_BASIC_SET_TO_IDLE = 0x02,
+		  CMD_BASIC_GET_DEV_INFO = 0x03,
+		  CMD_BASIC_GET_DEV_DESC_SETS = 0x04,
+		  CMD_BASIC_DEV_BUILTIN_TEST = 0x05,
+		  CMD_BASIC_RESUME = 0x06,
+		  CMD_BASIC_RESET = 0x7E
+
+	  };
+
+	  enum cmd_set_3dm {
+
+		  CMD_3DM_DEV_STATUS = 0x64
 
 	  };
 
 	  enum glob_descs {
 
 		  DESC_ACK = 0xF1
+
+	  };
+
+	  enum comm_modes {
+
+		  COMM_MODE_MIP = 0x01,
+		  COMM_MODE_AHRS = 0x02,
+		  COMM_MODE_GPS = 0x03
+
+	  };
+
+	  enum others {
+
+		  MODEL_ID = 0x1854
 
 	  };
     
@@ -74,8 +94,6 @@ namespace microstrain_3dm_gx3_45 {
       ~IMU();
 
 
-      void test();
-
       bool isOpen() const;
 
       void closePort();
@@ -85,6 +103,10 @@ namespace microstrain_3dm_gx3_45 {
       bool ping();
 
       bool selfTest();
+
+      bool devStatus();
+
+      std::string getLastError();
     
     private:
 
@@ -93,8 +115,16 @@ namespace microstrain_3dm_gx3_45 {
       void crc(tbyte_array& arr);
       bool crcCheck(tbyte_array& arr);
 
+      int comm_mode;
+
       char sync1;
       char sync2;
+
+      bool checkACK(tbyte_array& arr, uint8_t cmd_set, uint8_t cmd);
+
+      std::vector<std::string> error_desc;
+
+      void errMsg(std::string msg);
 
       class ReadSetupParameters
           {

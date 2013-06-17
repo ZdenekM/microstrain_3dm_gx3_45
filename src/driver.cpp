@@ -15,13 +15,15 @@ IMU::IMU() : io(), serial(io), timer(io), timeout(posix_time::seconds(0)) {
   sync1 = 0x75;
   sync2 = 0x65;
 
-  cout<<"class created"<<endl;
+  comm_mode = -1;
+
+  //cout<<"class created"<<endl;
 
 }
 
 IMU::~IMU() {
 
-  cout<<"class destroyed"<<endl;
+  //cout<<"class destroyed"<<endl;
 
 }
 
@@ -167,19 +169,7 @@ void IMU::performReadSetup(const ReadSetupParameters& param)
     }
 }
 
-void IMU::test() {
 
-	char c;
-	std::string result;
-	for(;;)
-	{
-		asio::read(serial,asio::buffer(&c,1));
-
-		cout << result << " ";
-
-	}
-
-}
 
 bool IMU::ping() {
 
@@ -190,7 +180,7 @@ bool IMU::ping() {
 	data.push_back(CMD_SET_BASIC); // desc set
 	data.push_back(0x02); // length
 	data.push_back(0x02);
-	data.push_back(BASIC_PING);
+	data.push_back(CMD_BASIC_PING);
 
 	crc(data);
 
@@ -204,8 +194,9 @@ bool IMU::ping() {
 
 	if (!crcCheck(recv)) return false;
 
-	if ( ((uint8_t)recv[2]==CMD_SET_BASIC) && ((uint8_t)recv[5]==DESC_ACK) && ((uint8_t)recv[6]==BASIC_PING) ) return true;
-	else return false;
+	if (!checkACK(recv,CMD_SET_BASIC,CMD_BASIC_PING)) return false;
+
+	return true;
 
 }
 
@@ -222,7 +213,7 @@ bool IMU::selfTest() {
 	data.push_back(CMD_SET_BASIC);
 	data.push_back(0x02);
 	data.push_back(0x02);
-	data.push_back(BASIC_DEV_BUILTIN_TEST);
+	data.push_back(CMD_BASIC_DEV_BUILTIN_TEST);
 
 	crc(data);
 	write(data);
@@ -234,34 +225,144 @@ bool IMU::selfTest() {
 
 	if (!crcCheck(recv)) {
 
-		//cout << "crc failed" << endl;
 		setTimeout(timeout_orig);
 		return false;
 
 	}
-
-	if ((uint8_t)recv[6]!=BASIC_DEV_BUILTIN_TEST) {
-
-		//cout << "error code" << endl;
-		setTimeout(timeout_orig);
-		return false;
-
-	}
-
 
 	setTimeout(timeout_orig);
+
+	if (!checkACK(recv,CMD_SET_BASIC, CMD_BASIC_DEV_BUILTIN_TEST)) return false;
 
 	if (recv[10]==0 && recv[11]==0 && recv[12]==0 && recv[13]==0) return true;
 	else {
 
-		//TODO give some description of error
+		if (recv[10] & 0x1) errMsg("AP-1: I2C Hardware Error.");
+		if (recv[10] & 0x2) errMsg("AP-1: I2C EEPROM Error.");
 
-		//cout << static_cast<int>(recv[10]) << ", " << static_cast<int>(recv[11]) << ", " << static_cast<int>(recv[12]) << ", " << static_cast<int>(recv[13]) << endl;
+		if (recv[11] & 0x1) errMsg("AHRS: Communication Error.");
+
+		if (recv[12] & 0x1) errMsg("GPS: Communication Error.");
+		if (recv[12] & 0x2) errMsg("GPS: 1PPS Signal Error.");
+		if (recv[12] & 0x4) errMsg("GPS: 1PPS Inhibit Error.");
+		if (recv[12] & 0x8) errMsg("GPS: Power Control Error.");
 
 		return false;
 
 	}
 
+}
+
+bool IMU::devStatus() {
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_3DM);
+	data.push_back(0x05);
+	data.push_back(0x05);
+	data.push_back(CMD_3DM_DEV_STATUS);
+	//data.push_back(((uint16_t)MODEL_ID>>2) & 0xff);
+	//data.push_back((uint16_t)MODEL_ID & 0xff);
+	data.push_back(0x18);
+	data.push_back(0x54);
+	data.push_back(0x01); // basic status
+
+
+	crc(data);
+	write(data);
+
+	tbyte_array recv;
+	size_t n = 27;
+
+	recv = read(n);
+
+	if (!crcCheck(recv)) {
+
+		return false;
+
+	}
+
+	if (!checkACK(recv,CMD_SET_3DM, CMD_3DM_DEV_STATUS)) return false;
+
+	//if (((uint8_t)recv[10] != ((MODEL_ID>>2)&0xff)) || ((uint8_t)recv[11] != (MODEL_ID & 0xff))) {
+	if (((uint8_t)recv[10] != 0x18) || ((uint8_t)recv[11] != 0x54)) {
+
+		errMsg("Wrong model number.");
+		return false;
+
+	}
+
+	if (recv[13] != COMM_MODE_MIP) {
+
+		errMsg("Not in MIP mode.");
+		return false;
+
+	}
+
+	return true;
+
+}
+
+void IMU::errMsg(std::string msg) {
+
+	error_desc.push_back(msg);
+
+}
+
+bool IMU::checkACK(tbyte_array& arr, uint8_t cmd_set, uint8_t cmd) {
+
+	if (arr.size() < 8) {
+
+		errMsg("Too short reply.");
+		return false;
+
+	}
+
+	if (arr[0] != sync1 || arr[1] != sync2) {
+
+		errMsg("Strange synchronization bytes.");
+		return false;
+
+	}
+
+	if (arr[2] != cmd_set) {
+
+		errMsg("Wrong desc set in reply.");
+		return false;
+
+	}
+
+	if (arr[6] != cmd) {
+
+		errMsg("Wrong command echo.");
+		return false;
+
+	}
+
+	if (arr[7] != 0x0) {
+
+		errMsg("NACK.");
+		return false;
+
+	}
+
+	return true;
+
+}
+
+string IMU::getLastError() {
+
+	if (error_desc.size() > 0) {
+
+		string tmp;
+
+		tmp = error_desc.back();
+		error_desc.pop_back();
+		return tmp;
+
+	} else return "";
 
 }
 
@@ -284,7 +385,12 @@ bool IMU::crcCheck(tbyte_array& arr) {
 
 
 	if (b1==(unsigned char)arr[arr.size()-2] && b2==(unsigned char)arr[arr.size()-1]) return true;
-	else return false;
+	else {
+
+		errMsg("Bad CRC.");
+		return false;
+
+	}
 
 }
 

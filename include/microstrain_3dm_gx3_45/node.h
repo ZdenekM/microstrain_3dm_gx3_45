@@ -1,6 +1,7 @@
 
 #include "geometry_msgs/PoseStamped.h"
 #include "sensor_msgs/Imu.h"
+#include "sensor_msgs/NavSatFix.h"
 #include "std_srvs/Empty.h"
 #include "tf/transform_datatypes.h"
 #include <tf/LinearMath/Matrix3x3.h>
@@ -41,6 +42,7 @@ class imuNode {
 		ros::Publisher imu_data_pub_;
 
 		ros::Publisher imu_pose_pub_;
+		ros::Publisher gps_pub_;
 
 		bool start();
 		bool stop();
@@ -57,6 +59,7 @@ class imuNode {
 
 		bool publish_pose_;
 		bool publish_imu_;
+		bool publish_gps_;
 
 	private:
 

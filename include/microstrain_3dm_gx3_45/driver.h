@@ -11,10 +11,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
 /*
  *
  * Serial communication based on following tutorial: http://www.webalice.it/fede.tft/serial_port/serial_port.html
  *
+ * TODOs
+ *  fix timeouts
  *
  */
 
@@ -39,6 +42,20 @@ namespace microstrain_3dm_gx3_45 {
 		uint64_t time;
 
 	} tahrs;
+
+	typedef struct {
+
+		double latitude;
+		double longtitude;
+
+		float horizontal_accuracy;
+
+		bool lat_lon_valid;
+		bool hor_acc_valid;
+
+		uint64_t time;
+
+	} tgps;
 
 
 	class timeout_exception: public std::runtime_error
@@ -77,9 +94,11 @@ namespace microstrain_3dm_gx3_45 {
 	  enum cmd_set_3dm {
 
 		  CMD_3DM_POLL_AHRS = 0x01,
+		  CMD_3DM_POLL_GPS = 0x02,
 		  CMD_3DM_DEV_STATUS = 0x64,
 		  CMD_3DM_STREAM_STATE = 0x11,
-		  CMD_3DM_AHRS_MSG_FORMAT = 0x08
+		  CMD_3DM_AHRS_MSG_FORMAT = 0x08,
+		  CMD_3DM_GPS_MSG_FORMAT = 0x09
 
 	  };
 
@@ -106,7 +125,8 @@ namespace microstrain_3dm_gx3_45 {
 	  enum others {
 
 		  MODEL_ID = 0x1854,
-		  DATA = 0x80
+		  DATA_AHRS = 0x80,
+		  DATA_GPS = 0x81
 
 	  };
 
@@ -155,6 +175,8 @@ namespace microstrain_3dm_gx3_45 {
 
       bool setAHRSMsgFormat();
 
+      bool setGPSMsgFormat();
+
       bool setToIdle();
 
       bool resume();
@@ -163,15 +185,19 @@ namespace microstrain_3dm_gx3_45 {
 
       bool pollAHRS();
 
+      bool pollGPS();
+
       bool setStream(uint8_t stream, bool state);
 
       tahrs getAHRS();
+      tgps getGPS();
     
     private:
 
     protected:
 
       tahrs ahrs_data_;
+      tgps gps_data_;
 
       void crc(tbyte_array& arr);
       bool crcCheck(tbyte_array& arr);
@@ -234,6 +260,7 @@ namespace microstrain_3dm_gx3_45 {
       enum ReadResult result;
 
       float extractFloat(char* addr);
+      double extractDouble(char* addr);
 
 
   };

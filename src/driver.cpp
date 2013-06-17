@@ -177,6 +177,54 @@ bool IMU::ping() {
 
 }
 
+bool IMU::pollGPS() {
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_3DM); // desc set
+	data.push_back(0x04); // length
+	data.push_back(0x04);
+	data.push_back(CMD_3DM_POLL_GPS);
+	data.push_back(0x1); // suppress ACK
+	data.push_back(0x0);
+
+	crc(data);
+	write(data);
+
+	tbyte_array recv;
+
+	size_t n = 50; // 44+6, TODO this is really stupid... there must be some parsing etc....
+
+	recv = read(n);
+
+	struct timespec curtime;
+	clock_gettime(CLOCK_REALTIME, &curtime);
+
+	if (!crcCheck(recv)) return false;
+
+	if (recv[4] != 0x2C || recv[5] != 0x03) {
+
+		errMsg("GPS: Wrong msg format.");
+		return false;
+
+	}
+
+	gps_data_.time =  (uint64_t)(curtime.tv_sec) * 1000000000 + (uint64_t)(curtime.tv_nsec);
+
+	gps_data_.latitude = extractDouble(&recv[6]);
+	gps_data_.longtitude = extractDouble(&recv[6+8]);
+	gps_data_.horizontal_accuracy = extractFloat(&recv[6+32]);
+
+	uint16_t flags = /*((uint16_t)recv[6+40])<<2 | */(uint16_t)recv[6+41];
+
+	gps_data_.lat_lon_valid = (flags & 0x1);
+	gps_data_.hor_acc_valid = (flags & (0x1<<5));
+
+	return true;
+}
+
 bool IMU::pollAHRS() {
 
 	tbyte_array data;
@@ -199,6 +247,9 @@ bool IMU::pollAHRS() {
 
 	recv = read(n);
 
+	struct timespec curtime;
+	clock_gettime(CLOCK_REALTIME, &curtime);
+
 	if (!crcCheck(recv)) return false;
 
 	//if (!checkACK(recv,CMD_SET_3DM,CMD_3DM_POLL_AHRS)) return false;
@@ -206,9 +257,6 @@ bool IMU::pollAHRS() {
 	// quaternion 0x0A, field length 18, MSB first
 
 	//quat.time = posix_time::microsec_clock::local_time();
-	struct timespec curtime;
-	clock_gettime(CLOCK_REALTIME, &curtime);
-	ahrs_data_.time =  (uint64_t)(curtime.tv_sec) * 1000000000 + (uint64_t)(curtime.tv_nsec);
 
 	if (recv[4] != 0x0E || recv[5] != 0x04) {
 
@@ -216,6 +264,8 @@ bool IMU::pollAHRS() {
 		return false;
 
 	}
+
+	ahrs_data_.time =  (uint64_t)(curtime.tv_sec) * 1000000000 + (uint64_t)(curtime.tv_nsec);
 
 	ahrs_data_.ax = extractFloat(&recv[6]); // 0x04
 	ahrs_data_.ay = extractFloat(&recv[6+4]);
@@ -260,6 +310,12 @@ tahrs IMU::getAHRS() {
 
 }
 
+tgps IMU::getGPS() {
+
+	return gps_data_;
+
+}
+
 float IMU::extractFloat(char* addr) {
 
   float tmp;
@@ -272,7 +328,56 @@ float IMU::extractFloat(char* addr) {
   return tmp;
 }
 
-bool IMU::setAHRSMsgFormat() { // TODO add some parameters...
+double IMU::extractDouble(char* addr) {
+
+  double tmp;
+
+  *((unsigned char*)(&tmp) + 7) = *(addr);
+  *((unsigned char*)(&tmp) + 6) = *(addr+1);
+  *((unsigned char*)(&tmp) + 5) = *(addr+2);
+  *((unsigned char*)(&tmp) + 4) = *(addr+3);
+
+  *((unsigned char*)(&tmp) + 3) = *(addr+4);
+  *((unsigned char*)(&tmp) + 2) = *(addr+5);
+  *((unsigned char*)(&tmp) + 1) = *(addr+6);
+  *((unsigned char*)(&tmp)) = *(addr+7);
+
+  return tmp;
+}
+
+bool IMU::setGPSMsgFormat() {
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_3DM); // desc set
+	data.push_back(0x07); // length
+	data.push_back(0x07);
+	data.push_back(CMD_3DM_GPS_MSG_FORMAT);
+
+	data.push_back(FUN_USE_NEW);
+	data.push_back(0x01); // desc count
+
+	data.push_back(0x03); // LLH
+	data.push_back(0x0);
+	data.push_back(0x1); // 4 Hz / TODO check this!!!
+
+	crc(data);
+	write(data);
+
+	tbyte_array recv;
+
+	size_t n = 10;
+	recv = read(n);
+
+	if (!crcCheck(recv)) return false;
+	if (!checkACK(recv,CMD_SET_3DM,CMD_3DM_GPS_MSG_FORMAT)) return false;
+
+	return true;
+}
+
+bool IMU::setAHRSMsgFormat() {
 
 	tbyte_array data;
 
@@ -288,7 +393,7 @@ bool IMU::setAHRSMsgFormat() { // TODO add some parameters...
 
 	data.push_back(0x04); // accelerometer vector
 	data.push_back(0x0);
-	data.push_back(0x5); // 20 Hz (100 Hz / 5)
+	data.push_back(0x1); // 20 Hz (100 Hz / 5)
 
 	data.push_back(0x05); // gyro vector
 	data.push_back(0x0);

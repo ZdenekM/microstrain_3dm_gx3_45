@@ -24,6 +24,7 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	param::param<bool>("~publish_pose",publish_pose_,true);
 	param::param<bool>("~publish_imu",publish_imu_,true);
+	param::param<bool>("~publish_gps",publish_gps_,true);
 
 	param::param("linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
 	param::param("orientation_stdev", orientation_stdev_, 0.035);
@@ -38,10 +39,12 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	}
 
-	imu_data_pub_ = nh_priv_.advertise<sensor_msgs::Imu>("imu/data", 100);
+	if (publish_imu_) imu_data_pub_ = nh_priv_.advertise<sensor_msgs::Imu>("imu/data", 100);
 	if (publish_pose_) imu_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("imu/pose", 100);
 
 	service_reset_ = service_reset_ = nh_priv_.advertiseService("reset_kf", &imuNode::srvResetKF,this);
+
+	if (publish_gps_) gps_pub_ = nh_priv_.advertise<sensor_msgs::NavSatFix>("gps", 100);
 
 }
 
@@ -103,6 +106,13 @@ bool imuNode::init() {
 		return false;
 
 	}
+
+	if (!imu_.setGPSMsgFormat()) {
+
+			printErrMsgs("Setting GPS msg format");
+			return false;
+
+		}
 
 	if (!imu_.initKalmanFilter((uint32_t)declination_)) {
 
@@ -173,7 +183,13 @@ void imuNode::spin() {
 	imu.orientation_covariance[4] = orientation_covariance;
 	imu.orientation_covariance[8] = orientation_covariance;
 
+	sensor_msgs::NavSatFix gps;
+
+	gps.header.frame_id = frame_id_;
+
 	ROS_INFO("Start polling device.");
+
+	int gps_msg_cnt = 0;
 
 	while(ok()) {
 
@@ -224,6 +240,40 @@ void imuNode::spin() {
 			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-q.p, q.p, -yaw),ps.pose.orientation);
 
 			imu_pose_pub_.publish(ps);
+
+		}
+
+		if (publish_gps_ && gps_pub_.getNumSubscribers() > 0) {
+
+			if (!imu_.pollGPS()) {
+
+				printErrMsgs("GPS");
+
+			}
+
+			tgps g;
+
+			g = imu_.getGPS();
+
+			gps.header.stamp.fromNSec(g.time);
+
+			gps.latitude = g.latitude;
+			gps.longitude = g.longtitude;
+
+			// TODO status / covariance
+			// TODO publish horizont. accuracy somehow???
+
+			gps_pub_.publish(gps);
+
+			if (gps_msg_cnt++==2*rate_) {
+
+				gps_msg_cnt = 0;
+
+				if (!g.lat_lon_valid) ROS_WARN("LAT/LON not valid.");
+				if (!g.hor_acc_valid) ROS_WARN("Horizontal accuracy not valid.");
+				else ROS_INFO("GPS horizontal accuracy: %f",g.horizontal_accuracy);
+
+			}
 
 		}
 

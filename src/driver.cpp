@@ -173,14 +173,130 @@ void IMU::performReadSetup(const ReadSetupParameters& param)
 
 bool IMU::ping() {
 
+	return sendNoDataCmd(CMD_SET_BASIC, CMD_BASIC_PING);
+
+}
+
+bool IMU::pollAHRS() {
+
 	tbyte_array data;
 
 	data.push_back(sync1);
 	data.push_back(sync2);
-	data.push_back(CMD_SET_BASIC); // desc set
-	data.push_back(0x02); // length
-	data.push_back(0x02);
-	data.push_back(CMD_BASIC_PING);
+	data.push_back(CMD_SET_3DM); // desc set
+	data.push_back(0x04); // length
+	data.push_back(0x04);
+	data.push_back(CMD_3DM_POLL_AHRS);
+	data.push_back(0x1); // suppress ACK
+	data.push_back(0x0);
+
+	crc(data);
+	write(data);
+
+	tbyte_array recv;
+
+	size_t n = 48; // TODO this is really stupid... there must be some parsing etc....
+
+	recv = read(n);
+
+	if (!crcCheck(recv)) return false;
+
+	//if (!checkACK(recv,CMD_SET_3DM,CMD_3DM_POLL_AHRS)) return false;
+
+	// quaternion 0x0A, field length 18, MSB first
+
+	//quat.time = posix_time::microsec_clock::local_time();
+	struct timespec curtime;
+	clock_gettime(CLOCK_REALTIME, &curtime);
+	ahrs_data_.time =  (uint64_t)(curtime.tv_sec) * 1000000000 + (uint64_t)(curtime.tv_nsec);
+
+	if (recv[4] != 0x0E || recv[5] != 0x04) {
+
+		errMsg("AHRS: Wrong msg format (0x04).");
+		return false;
+
+	}
+
+	ahrs_data_.ax = extractFloat(&recv[6]); // 0x04
+	ahrs_data_.ay = extractFloat(&recv[6+4]);
+	ahrs_data_.az = extractFloat(&recv[6+8]);
+
+	if (recv[18] != 0x0E || recv[19] != 0x05) {
+
+		errMsg("AHRS: Wrong msg format (0x05).");
+		return false;
+
+	}
+
+	ahrs_data_.gx = extractFloat(&recv[20]); // 0x05
+	ahrs_data_.gy = extractFloat(&recv[20+4]);
+	ahrs_data_.gz = extractFloat(&recv[20+8]);
+
+	if (recv[32] != 0x0E || recv[33] != 0x0C) {
+
+		errMsg("AHRS: Wrong msg format (0x0C).");
+		return false;
+
+	}
+
+	ahrs_data_.r = extractFloat(&recv[34]); // 0x0C
+	ahrs_data_.p = extractFloat(&recv[34+4]);
+	ahrs_data_.y = extractFloat(&recv[34+8]);
+
+	/*quat.q0 = extractFloat(&recv[6]);
+	quat.q1 = extractFloat(&recv[6+4]);
+	quat.q2 = extractFloat(&recv[6+8]);
+	quat.q3 = extractFloat(&recv[6+12]);*/
+
+	//cout << quat.q0 << " " << quat.q1 << " " << quat.q2 << " " << quat.q3 << endl;
+
+	return true;
+
+}
+
+tahrs IMU::getAHRS() {
+
+	return ahrs_data_;
+
+}
+
+float IMU::extractFloat(char* addr) {
+
+  float tmp;
+
+  *((unsigned char*)(&tmp) + 3) = *(addr);
+  *((unsigned char*)(&tmp) + 2) = *(addr+1);
+  *((unsigned char*)(&tmp) + 1) = *(addr+2);
+  *((unsigned char*)(&tmp)) = *(addr+3);
+
+  return tmp;
+}
+
+bool IMU::setAHRSMsgFormat() { // TODO add some parameters...
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_3DM); // desc set
+	data.push_back(0x0D); // length
+	data.push_back(0x0D);
+	data.push_back(CMD_3DM_AHRS_MSG_FORMAT);
+
+	data.push_back(FUN_USE_NEW);
+	data.push_back(0x03); // desc count
+
+	data.push_back(0x04); // accelerometer vector
+	data.push_back(0x0);
+	data.push_back(0x5); // 20 Hz (100 Hz / 5)
+
+	data.push_back(0x05); // gyro vector
+	data.push_back(0x0);
+	data.push_back(0x5); // 20 Hz (100 Hz / 5)
+
+	data.push_back(0x0C); // euler angles
+	data.push_back(0x0);
+	data.push_back(0x5); // 20 Hz (100 Hz / 5)
 
 	crc(data);
 
@@ -194,7 +310,83 @@ bool IMU::ping() {
 
 	if (!crcCheck(recv)) return false;
 
-	if (!checkACK(recv,CMD_SET_BASIC,CMD_BASIC_PING)) return false;
+	if (!checkACK(recv,CMD_SET_3DM,CMD_3DM_AHRS_MSG_FORMAT)) return false;
+
+	return true;
+
+}
+
+bool IMU::initKalmanFilter(uint32_t decl) {
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_NAVFILTER); // desc set
+	data.push_back(0x06); // length
+	data.push_back(0x06);
+	data.push_back(CMD_NAV_SET_INIT_FROM_AHRS);
+
+	data.push_back((decl>>16)&0xff); // MSB
+	data.push_back((decl>>8)&0xff);
+	data.push_back((decl>>4)&0xff);
+	data.push_back((decl)&0xff); // LSB
+
+	crc(data);
+
+	write(data);
+
+	tbyte_array recv;
+
+	size_t n = 10;
+
+	recv = read(n);
+
+	if (!crcCheck(recv)) return false;
+
+	if (!checkACK(recv,CMD_SET_NAVFILTER,CMD_NAV_SET_INIT_FROM_AHRS)) return false;
+
+	return true;
+
+}
+
+bool IMU::resume() {
+
+	return sendNoDataCmd(CMD_SET_BASIC, CMD_BASIC_RESUME);
+
+}
+
+
+bool IMU::setToIdle() {
+
+	return sendNoDataCmd(CMD_SET_BASIC, CMD_BASIC_SET_TO_IDLE);
+
+}
+
+bool IMU::sendNoDataCmd(uint8_t cmd_set, uint8_t cmd) {
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(cmd_set); // desc set
+	data.push_back(0x02); // length
+	data.push_back(0x02);
+	data.push_back(cmd);
+
+	crc(data);
+
+	write(data);
+
+	tbyte_array recv;
+
+	size_t n = 10;
+
+	recv = read(n);
+
+	if (!crcCheck(recv)) return false;
+
+	if (!checkACK(recv,cmd_set,cmd)) return false;
 
 	return true;
 
@@ -253,6 +445,7 @@ bool IMU::selfTest() {
 
 }
 
+
 bool IMU::devStatus() {
 
 	tbyte_array data;
@@ -302,6 +495,54 @@ bool IMU::devStatus() {
 	}
 
 	return true;
+
+}
+
+bool IMU::setStream(uint8_t stream, bool state) {
+
+	tbyte_array data;
+
+	data.push_back(sync1);
+	data.push_back(sync2);
+	data.push_back(CMD_SET_3DM);
+	data.push_back(0x05);
+	data.push_back(0x05);
+	data.push_back(CMD_3DM_STREAM_STATE);
+	data.push_back(0x1);
+	data.push_back(stream);
+	if (state) data.push_back(0x01);
+	else data.push_back(0x0);
+
+
+	crc(data);
+	write(data);
+
+	tbyte_array recv;
+	size_t n = 10;
+
+	recv = read(n);
+
+	if (!crcCheck(recv)) {
+
+		return false;
+
+	}
+
+	if (!checkACK(recv,CMD_SET_3DM, CMD_3DM_STREAM_STATE)) return false;
+
+	return true;
+
+}
+
+bool IMU::disAllStreams() {
+
+	bool ret = true;
+
+	if (!setStream(0x01,false)) ret = false; // AHRS
+	if (!setStream(0x02,false)) ret = false; // GPS
+	if (!setStream(0x03,false)) ret = false; // NAV
+
+	return ret;
 
 }
 

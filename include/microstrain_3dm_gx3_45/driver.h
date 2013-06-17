@@ -5,6 +5,11 @@
 #include <boost/asio/serial_port.hpp> 
 #include <boost/asio.hpp>
 #include <boost/utility.hpp>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 /*
  *
@@ -16,6 +21,24 @@
 namespace microstrain_3dm_gx3_45 {
 
 	typedef std::vector<char> tbyte_array;
+
+	typedef struct {
+
+		float ax;
+		float ay;
+		float az;
+
+		float gx;
+		float gy;
+		float gz;
+
+		float r;
+		float p;
+		float y;
+
+		uint64_t time;
+
+	} tahrs;
 
 
 	class timeout_exception: public std::runtime_error
@@ -53,7 +76,16 @@ namespace microstrain_3dm_gx3_45 {
 
 	  enum cmd_set_3dm {
 
-		  CMD_3DM_DEV_STATUS = 0x64
+		  CMD_3DM_POLL_AHRS = 0x01,
+		  CMD_3DM_DEV_STATUS = 0x64,
+		  CMD_3DM_STREAM_STATE = 0x11,
+		  CMD_3DM_AHRS_MSG_FORMAT = 0x08
+
+	  };
+
+	  enum cmd_set_nav {
+
+		  CMD_NAV_SET_INIT_FROM_AHRS = 0x04
 
 	  };
 
@@ -73,7 +105,18 @@ namespace microstrain_3dm_gx3_45 {
 
 	  enum others {
 
-		  MODEL_ID = 0x1854
+		  MODEL_ID = 0x1854,
+		  DATA = 0x80
+
+	  };
+
+	  enum functions {
+
+		  FUN_USE_NEW = 0x01,
+		  FUN_READ_CURRENT = 0x02,
+		  FUN_SAVE_CURR_AS_STARTUP = 0x03,
+		  FUN_LOAD_SAVE_STARTUP = 0x04,
+		  FUN_RESET_TO_FACTORY_DEF = 0x05
 
 	  };
     
@@ -106,11 +149,29 @@ namespace microstrain_3dm_gx3_45 {
 
       bool devStatus();
 
+      bool disAllStreams();
+
       std::string getLastError();
+
+      bool setAHRSMsgFormat();
+
+      bool setToIdle();
+
+      bool resume();
+
+      bool initKalmanFilter(uint32_t decl);
+
+      bool pollAHRS();
+
+      bool setStream(uint8_t stream, bool state);
+
+      tahrs getAHRS();
     
     private:
 
     protected:
+
+      tahrs ahrs_data_;
 
       void crc(tbyte_array& arr);
       bool crcCheck(tbyte_array& arr);
@@ -121,6 +182,8 @@ namespace microstrain_3dm_gx3_45 {
       char sync2;
 
       bool checkACK(tbyte_array& arr, uint8_t cmd_set, uint8_t cmd);
+
+      bool sendNoDataCmd(uint8_t cmd_set, uint8_t cmd);
 
       std::vector<std::string> error_desc;
 
@@ -169,6 +232,8 @@ namespace microstrain_3dm_gx3_45 {
       enum ReadResult { resultInProgress, resultSuccess, resultError, resultTimeoutExpired};
 
       enum ReadResult result;
+
+      float extractFloat(char* addr);
 
 
   };

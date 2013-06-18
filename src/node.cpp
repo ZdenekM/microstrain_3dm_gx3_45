@@ -28,6 +28,7 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<bool>("~publish_gps",publish_gps_,true);
 	param::param<bool>("~publish_gps_as_odom",publish_gps_as_odom_,true);
 	param::param<bool>("~publish_nav_odom",publish_nav_odom_,true);
+	//param::param<bool>("~nav_odom_rel",nav_odom_rel_,true);
 	param::param<bool>("~publish_nav_pose",publish_nav_pose_,true);
 	param::param<bool>("~publish_nav_fix",publish_nav_fix_,true);
 
@@ -220,6 +221,11 @@ void imuNode::spin() {
 	gps.header.frame_id = frame_id_;
 	gps.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
 
+	sensor_msgs::NavSatFix nav_fix;
+	nav_fix.header.frame_id = frame_id_;
+	nav_fix.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
+
+
 	nav_msgs::Odometry gps_odom;
 
 	gps_odom.header.frame_id = frame_id_;
@@ -244,7 +250,7 @@ void imuNode::spin() {
 
 	while(ok()) {
 
-		if (publish_nav_odom_ || publish_nav_pose_) {
+		if (publish_nav_odom_ || publish_nav_pose_ || publish_nav_fix_) {
 
 			// just for testing
 			if (!imu_.pollNAV()) {
@@ -429,7 +435,7 @@ void imuNode::spin() {
 
 		}
 
-		if (publish_gps_ || publish_gps_as_odom_) {
+		if (publish_gps_ || publish_gps_as_odom_ || publish_nav_fix_ || publish_nav_odom_) {
 
 			if (!imu_.pollGPS()) {
 
@@ -439,6 +445,8 @@ void imuNode::spin() {
 
 			tgps g;
 			g = imu_.getGPS();
+
+			if (!g.lat_lon_valid) ROS_WARN_ONCE("GPS fix not available.");
 
 			if (g.lat_lon_valid && !gps_fix_available_) {
 
@@ -454,7 +462,44 @@ void imuNode::spin() {
 
 			}
 
-			if (!g.lat_lon_valid) ROS_WARN_ONCE("GPS fix not available.");
+
+			if (gps_fix_available_) {
+
+				if (gps_msg_cnt++==6*rate_) {
+
+					gps_msg_cnt = 0;
+
+					if (!g.lat_lon_valid) ROS_WARN("LAT/LON not valid.");
+					if (!g.hor_acc_valid) ROS_WARN("Horizontal accuracy not valid.");
+					else ROS_INFO("GPS horizontal accuracy: %f",g.horizontal_accuracy);
+
+				}
+
+			}
+
+		}
+
+		if (publish_nav_fix_ && nav_fix_pub_.getNumSubscribers() > 0) {
+
+			ROS_INFO_ONCE("Publishing NAV as NavSatFix.");
+
+			tnav n = imu_.getNAV();
+
+			nav_fix.header.stamp.fromNSec(n.time);
+
+			nav_fix.latitude = n.est_latitude;
+			nav_fix.longitude = n.est_longtitude;
+			nav_fix.altitude = n.est_height;
+
+			if (n.est_llh_valid) nav_fix.status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
+			else nav_fix.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
+
+			nav_fix.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+			nav_fix.position_covariance[0] = pow(n.est_north_pos_unc,2);
+			nav_fix.position_covariance[4] = pow(n.est_east_pos_unc,2);
+			nav_fix.position_covariance[8] = pow(n.est_down_pos_unc,2);
+
+			nav_fix_pub_.publish(nav_fix);
 
 		}
 
@@ -486,16 +531,6 @@ void imuNode::spin() {
 			}
 
 			gps_pub_.publish(gps);
-
-			if (gps_msg_cnt++==6*rate_) {
-
-				gps_msg_cnt = 0;
-
-				if (!g.lat_lon_valid) ROS_WARN("LAT/LON not valid.");
-				if (!g.hor_acc_valid) ROS_WARN("Horizontal accuracy not valid.");
-				else ROS_INFO("GPS horizontal accuracy: %f",g.horizontal_accuracy);
-
-			}
 
 		}
 

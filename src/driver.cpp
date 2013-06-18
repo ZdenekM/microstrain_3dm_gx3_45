@@ -51,7 +51,6 @@ bool IMU::openPort(string port, unsigned int baud_rate, boost::asio::serial_port
 
 	  }*/
 
-	// TODO flush buffer?
 
 	return true;
 
@@ -119,7 +118,7 @@ void IMU::waitForMsg() {
 
 	    }*/
 
-	tbyte_array recv; // TODO just for testing!!!!!
+	tbyte_array recv; // TODO just for testing!!!!! rewrite it
 
 	char prev = ' ';
 
@@ -131,11 +130,8 @@ void IMU::waitForMsg() {
 		recv.clear();
 		recv = read(1);
 
-		//cout << prev << " " << recv[0] << endl;
-
 	} while (!(prev=='u' && recv[0]=='e'));
 
-	//cout << "we have header" << endl;
 
 }
 

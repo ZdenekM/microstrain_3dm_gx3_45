@@ -19,6 +19,8 @@
  *
  * TODOs
  *  fix timeouts
+ *	antenna offset (0x0D, 0x13)
+ *
  *
  */
 

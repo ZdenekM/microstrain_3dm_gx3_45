@@ -76,6 +76,8 @@ class imuNode {
 
 		bool gps_fix_available_;
 
+		//bool nav_odom_rel_;
+
 	private:
 
 };

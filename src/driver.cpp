@@ -334,6 +334,8 @@ bool IMU::pollNAV() {
 
 	if (!crcCheck(recv)) return false;
 
+	nav_data_.time =  (uint64_t)(curtime.tv_sec) * 1000000000 + (uint64_t)(curtime.tv_nsec);
+
 	if (recv[2] != 0x08 || recv[3] != 0x10) { // check length of each field and its descriptor
 
 		errMsg("Wrong msg format (0x10).");
@@ -341,8 +343,132 @@ bool IMU::pollNAV() {
 
 	}
 
+	// filter state
+	nav_data_.filter_state = ((uint16_t)recv[4]<<8) | (uint16_t)recv[5];
+	nav_data_.filter_status_flags = ((uint16_t)recv[8]<<8) | (uint16_t)recv[9];
+
+
+	if (recv[10] != 28 || recv[11] != 0x01) {
+
+			errMsg("Wrong msg format (0x01).");
+			return false;
+
+		}
+
+	nav_data_.est_latitude = extractDouble(&recv[12]);
+	nav_data_.est_longtitude = extractDouble(&recv[12+8]);
+	nav_data_.est_height = extractDouble(&recv[12+16]);
+
+	if (recv[12+24+1]) nav_data_.est_llh_valid = true;
+	else nav_data_.est_llh_valid = false;
+
+
+	if (recv[38] != 16 || recv[39] != 0x02) {
+
+		errMsg("Wrong msg format (0x02).");
+		return false;
+
+	}
+
+	nav_data_.est_vel_north = extractFloat(&recv[40]);
+	nav_data_.est_vel_east = extractFloat(&recv[40+4]);
+	nav_data_.est_vel_down = extractFloat(&recv[40+8]);
+
+	if (recv[40+12+1]) nav_data_.est_ned_valid = true;
+	else nav_data_.est_ned_valid = false;
+
+	if (recv[54] != 16 || recv[55] != 0x05) {
+
+		errMsg("Wrong msg format (0x05).");
+		return false;
+
+	}
+
+	nav_data_.est_r = extractFloat(&recv[56]);
+	nav_data_.est_p = extractFloat(&recv[56+4]);
+	nav_data_.est_y = extractFloat(&recv[56+8]);
+
+	if (recv[56+12+1]) nav_data_.est_rpy_valid = true;
+	else nav_data_.est_rpy_valid = false;
+
+
+	if (recv[70] != 16 || recv[71] != 0x08) {
+
+		errMsg("Wrong msg format (0x08).");
+		return false;
+
+	}
+
+	nav_data_.est_north_pos_unc = extractFloat(&recv[72]);
+	nav_data_.est_east_pos_unc = extractFloat(&recv[72+4]);
+	nav_data_.est_down_pos_unc = extractFloat(&recv[72+8]);
+
+	if (recv[72+12+1]) nav_data_.est_pos_unc_valid = true;
+	else nav_data_. est_pos_unc_valid = false;
+
+	if (recv[86] != 16 || recv[87] != 0x09) {
+
+		errMsg("Wrong msg format (0x09).");
+		return false;
+
+	}
+
+	nav_data_.est_north_vel_unc = extractFloat(&recv[88]);
+	nav_data_.est_east_vel_unc = extractFloat(&recv[88+4]);
+	nav_data_.est_down_vel_unc = extractFloat(&recv[88+8]);
+
+	if (recv[88+12+1]) nav_data_.est_vel_unc_valid = true;
+	else nav_data_. est_vel_unc_valid = false;
+
+	if (recv[102] != 16 || recv[103] != 0x0A) {
+
+		errMsg("Wrong msg format (0x0A).");
+		return false;
+
+	}
+
+	nav_data_.est_r_unc = extractFloat(&recv[104]);
+	nav_data_.est_p_unc = extractFloat(&recv[104+4]);
+	nav_data_.est_y_unc = extractFloat(&recv[104+8]);
+
+	if (recv[104+12+1]) nav_data_.est_rpy_unc_valid = true;
+	else nav_data_. est_rpy_unc_valid = false;
+
+	if (recv[118] != 16 || recv[119] != 0x0D) {
+
+		errMsg("Wrong msg format (0x0D).");
+		return false;
+
+	}
+
+	nav_data_.est_acc_lin_x = extractFloat(&recv[120]);
+	nav_data_.est_acc_lin_y = extractFloat(&recv[120+4]);
+	nav_data_.est_acc_lin_z = extractFloat(&recv[120+8]);
+
+	if (recv[120+12+1]) nav_data_.est_acc_lin_valid = true;
+	else nav_data_.est_acc_lin_valid = false;
+
+	if (recv[134] != 16 || recv[135] != 0x0E) {
+
+		errMsg("Wrong msg format (0x0E).");
+		return false;
+
+	}
+
+	nav_data_.est_acc_rot_x = extractFloat(&recv[136]);
+	nav_data_.est_acc_rot_y = extractFloat(&recv[136+4]);
+	nav_data_.est_acc_rot_z = extractFloat(&recv[136+8]);
+
+	if (recv[136+12+1]) nav_data_.est_acc_rot_valid = true;
+	else nav_data_.est_acc_rot_valid = false;
 
 	return true;
+
+}
+
+tnav IMU::getNAV() {
+
+	return nav_data_;
 
 }
 

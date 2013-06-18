@@ -27,6 +27,8 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<bool>("~publish_imu",publish_imu_,true);
 	param::param<bool>("~publish_gps",publish_gps_,true);
 	param::param<bool>("~publish_gps_as_odom",publish_gps_as_odom_,true);
+	param::param<bool>("~publish_nav_odom",publish_nav_odom_,true);
+	param::param<bool>("~publish_nav_pose",publish_nav_pose_,true);
 
 	param::param("linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
 	param::param("orientation_stdev", orientation_stdev_, 0.035);
@@ -50,6 +52,9 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	if (publish_gps_) gps_pub_ = nh_priv_.advertise<sensor_msgs::NavSatFix>("gps/fix", 100);
 	if (publish_gps_as_odom_) gps_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("gps/odom", 100);
+
+	if (publish_nav_odom_) nav_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("nav/odom", 100);
+	if (publish_nav_pose_) nav_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("nav/pose", 100);
 
 }
 
@@ -185,6 +190,10 @@ void imuNode::spin() {
 	ps.header.frame_id = frame_id_;
 	ps.pose.position.x = ps.pose.position.y = ps.pose.position.z = 0.0;
 
+	geometry_msgs::PoseStamped nav_pose;
+	nav_pose.header.frame_id = frame_id_;
+	nav_pose.pose.position.x = nav_pose.pose.position.y = nav_pose.pose.position.z = 0.0; // TODO ????
+
 	sensor_msgs::Imu imu;
 	imu.header.frame_id = frame_id_;
 
@@ -221,6 +230,11 @@ void imuNode::spin() {
 	gps_odom.pose.covariance[28] = 99999; // rot y
 	gps_odom.pose.covariance[35] = 99999; // rot z
 
+	nav_msgs::Odometry nav_odom;
+
+	nav_odom.header.frame_id = frame_id_;
+	nav_odom.child_frame_id = child_frame_id_;
+
 
 	ROS_INFO("Start polling device.");
 
@@ -228,10 +242,17 @@ void imuNode::spin() {
 
 	while(ok()) {
 
-		// just for testing
-		if (!imu_.pollNAV()) {
+		if (publish_nav_odom_ || publish_nav_pose_) {
 
-			printErrMsgs("NAV");
+			// just for testing
+			if (!imu_.pollNAV()) {
+
+				printErrMsgs("NAV");
+
+			}
+
+			// TODO check nav filter status
+
 
 		}
 
@@ -246,7 +267,123 @@ void imuNode::spin() {
 		}
 
 
+		if (publish_nav_pose_ && nav_pose_pub_.getNumSubscribers() > 0) {
+
+			ROS_INFO_ONCE("Publishing NAV as Pose.");
+
+			tnav n = imu_.getNAV();
+
+			nav_pose.header.stamp.fromNSec(n.time);
+
+			float yaw = n.est_y;
+
+			yaw+=M_PIl;
+			if (yaw > M_PIl) yaw-=2*M_PIl;
+
+			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-n.est_p, n.est_p, -yaw), nav_pose.pose.orientation);
+
+			nav_pose_pub_.publish(nav_pose);
+
+		}
+
+		if (publish_nav_odom_ && nav_odom_pub_.getNumSubscribers() > 0) {
+
+			ROS_INFO_ONCE("Publishing NAV as Odometry.");
+
+			tnav n = imu_.getNAV();
+
+			nav_odom.header.stamp.fromNSec(n.time);
+
+			double northing, easting;
+			string zone;
+
+			gps_common::LLtoUTM(n.est_latitude, n.est_longtitude, northing, easting, zone);
+
+			nav_odom.pose.pose.position.x = easting;
+			nav_odom.pose.pose.position.y = northing;
+			nav_odom.pose.pose.position.y = n.est_height;
+
+			float yaw = n.est_y;
+
+			yaw+=M_PIl;
+			if (yaw > M_PIl) yaw-=2*M_PIl;
+
+			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-n.est_p, n.est_p, -yaw), nav_odom.pose.pose.orientation);
+
+			if (n.est_pos_unc_valid) {
+
+				nav_odom.pose.covariance[0] = pow(n.est_east_pos_unc,2); // TODO check if this is ok
+				nav_odom.pose.covariance[7] = pow(n.est_north_pos_unc,2);
+				nav_odom.pose.covariance[14] = pow(n.est_down_pos_unc,2);
+
+			} else {
+
+				nav_odom.pose.covariance[0] = 99999;
+				nav_odom.pose.covariance[7] = 99999;
+				nav_odom.pose.covariance[14] = 99999;
+
+			}
+
+
+            if (n.est_vel_unc_valid) {
+
+				nav_odom.pose.covariance[21] = pow(n.est_east_vel_unc,2);
+				nav_odom.pose.covariance[28] = pow(n.est_north_vel_unc,2);
+				nav_odom.pose.covariance[35] = pow(n.est_down_vel_unc,2);
+
+
+            } else {
+
+            	nav_odom.pose.covariance[21] = 99999;
+            	nav_odom.pose.covariance[28] = 99999;
+            	nav_odom.pose.covariance[35] = 99999;
+
+            }
+
+            nav_odom.twist.twist.linear.x = -n.est_acc_lin_x;
+            nav_odom.twist.twist.linear.y = n.est_acc_lin_y;
+            nav_odom.twist.twist.linear.z = -n.est_acc_lin_z;
+
+            nav_odom.twist.twist.angular.x = -n.est_acc_rot_x;
+            nav_odom.twist.twist.angular.y = n.est_acc_rot_y;
+            nav_odom.twist.twist.angular.z = -n.est_acc_rot_z;
+
+            if (n.est_acc_lin_valid) {
+
+            	nav_odom.twist.covariance[0] = linear_acceleration_covariance;
+            	nav_odom.twist.covariance[7] = linear_acceleration_covariance;
+            	nav_odom.twist.covariance[14] = linear_acceleration_covariance;
+            } else {
+
+            	nav_odom.twist.covariance[0] = 99999;
+				nav_odom.twist.covariance[7] = 99999;
+				nav_odom.twist.covariance[14] = 99999;
+
+            }
+
+            if (n.est_acc_rot_valid) {
+
+				nav_odom.twist.covariance[21] = angular_velocity_covariance;
+				nav_odom.twist.covariance[28] = angular_velocity_covariance;
+				nav_odom.twist.covariance[35] = angular_velocity_covariance;
+
+			} else {
+
+				nav_odom.twist.covariance[21] = 99999;
+				nav_odom.twist.covariance[28] = 99999;
+				nav_odom.twist.covariance[35] = 99999;
+
+			}
+
+
+            nav_odom_pub_.publish(nav_odom);
+
+		}
+
+
 		if (publish_imu_ && imu_data_pub_.getNumSubscribers() > 0) {
+
+			ROS_INFO_ONCE("Publishing IMU data.");
 
 			tahrs q = imu_.getAHRS();
 
@@ -272,6 +409,8 @@ void imuNode::spin() {
 		}
 
 		if (publish_pose_ && imu_pose_pub_.getNumSubscribers() > 0) {
+
+			ROS_INFO_ONCE("Publishing IMU data as PoseStamped.");
 
 			tahrs q = imu_.getAHRS();
 
@@ -319,6 +458,8 @@ void imuNode::spin() {
 
 		if (publish_gps_ && gps_pub_.getNumSubscribers() > 0) {
 
+			ROS_INFO_ONCE("Publishing GPS as NavSatFix.");
+
 			tgps g;
 			g = imu_.getGPS();
 
@@ -344,7 +485,7 @@ void imuNode::spin() {
 
 			gps_pub_.publish(gps);
 
-			if (gps_msg_cnt++==2*rate_) {
+			if (gps_msg_cnt++==6*rate_) {
 
 				gps_msg_cnt = 0;
 
@@ -357,6 +498,8 @@ void imuNode::spin() {
 		}
 
 		if (publish_gps_as_odom_ && gps_odom_pub_.getNumSubscribers() > 0) {
+
+			ROS_INFO_ONCE("Publihing GPS as Odometry.");
 
 			tgps g;
 			g = imu_.getGPS();

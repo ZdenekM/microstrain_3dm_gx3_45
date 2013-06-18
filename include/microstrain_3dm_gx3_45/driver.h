@@ -65,6 +65,29 @@ namespace microstrain_3dm_gx3_45 {
 
 	typedef struct {
 
+		enum filter_states {
+
+			FILTER_STARTUP = 0x00,
+			FILTER_INITIALIZATION = 0x01,
+			FILTER_RUNNING_VALID = 0x02,
+			FILTER_RUNNING_ERROR = 0x03
+
+		};
+
+		enum filter_flags {
+
+			FILTER_ATT_NOT_INITIALIZED = 0x1000,
+			FILTER_POS_VEL_NOT_INITIALIZED = 0x2000,
+			FILTER_IMU_UNAVAILABLE = 0x0001,
+			FILTER_GPS_UNAVAILABLE = 0x0002,
+			FILTER_MATRIX_SINGULARITY = 0x0008,
+			FILTER_POS_COV_HI = 0x0010,
+			FILTER_VEL_COV_HI = 0x0020,
+			FILTER_ATT_COV_HI = 0x0040,
+			FILTER_NAN_IN_SOLUTION = 0x0080
+
+		};
+
 		uint16_t filter_state; // Filter Status (0x82, 0x10) -> 8 B
 		uint16_t filter_status_flags;
 
@@ -108,6 +131,7 @@ namespace microstrain_3dm_gx3_45 {
 		float est_acc_rot_z;
 		bool est_acc_rot_valid;
 
+		uint64_t time;
 
 	} tnav;
 
@@ -251,6 +275,7 @@ namespace microstrain_3dm_gx3_45 {
 
       tahrs getAHRS();
       tgps getGPS();
+      tnav getNAV();
     
     private:
 
@@ -258,6 +283,7 @@ namespace microstrain_3dm_gx3_45 {
 
       tahrs ahrs_data_;
       tgps gps_data_;
+      tnav nav_data_;
 
       void crc(tbyte_array& arr);
       bool crcCheck(tbyte_array& arr);

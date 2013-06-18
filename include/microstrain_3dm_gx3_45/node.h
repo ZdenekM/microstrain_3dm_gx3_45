@@ -48,6 +48,9 @@ class imuNode {
 		ros::Publisher gps_pub_;
 		ros::Publisher gps_odom_pub_;
 
+		ros::Publisher nav_odom_pub_;
+		ros::Publisher nav_pose_pub_;
+
 		bool start();
 		bool stop();
 
@@ -65,6 +68,9 @@ class imuNode {
 		bool publish_imu_;
 		bool publish_gps_;
 		bool publish_gps_as_odom_;
+
+		bool publish_nav_odom_;
+		bool publish_nav_pose_;
 
 		bool gps_fix_available_;
 

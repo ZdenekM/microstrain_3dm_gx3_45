@@ -34,7 +34,7 @@ class imuNode {
 
 		std::string port_;
 		int baud_rate_;
-		int declination_;
+		float declination_;
 
 		bool started_;
 		bool inited_;
@@ -50,6 +50,7 @@ class imuNode {
 
 		ros::Publisher nav_odom_pub_;
 		ros::Publisher nav_pose_pub_;
+		ros::Publisher nav_fix_pub_;
 
 		bool start();
 		bool stop();
@@ -71,6 +72,7 @@ class imuNode {
 
 		bool publish_nav_odom_;
 		bool publish_nav_pose_;
+		bool publish_nav_fix_;
 
 		bool gps_fix_available_;
 

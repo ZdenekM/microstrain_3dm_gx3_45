@@ -18,7 +18,7 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	param::param<string>("~port",port_,"/dev/ttyACM0");
 	param::param<int>("~baud_rate",baud_rate_,115200);
-	param::param<int>("~declination",declination_,0);
+	param::param<float>("~declination",declination_, 3.8); // http://www.ngdc.noaa.gov/geomag-web/#declination
 	param::param<string>("~frame_id",frame_id_,"/imu");
 	param::param<string>("~child_frame_id",child_frame_id_,"/base_footprint");
 	param::param<float>("~rate",rate_,10.0);
@@ -29,6 +29,7 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<bool>("~publish_gps_as_odom",publish_gps_as_odom_,true);
 	param::param<bool>("~publish_nav_odom",publish_nav_odom_,true);
 	param::param<bool>("~publish_nav_pose",publish_nav_pose_,true);
+	param::param<bool>("~publish_nav_fix",publish_nav_fix_,true);
 
 	param::param("linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
 	param::param("orientation_stdev", orientation_stdev_, 0.035);
@@ -45,16 +46,17 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	}
 
-	if (publish_imu_) imu_data_pub_ = nh_priv_.advertise<sensor_msgs::Imu>("imu/data", 100);
-	if (publish_pose_) imu_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("imu/pose", 100);
+	if (publish_imu_) imu_data_pub_ = nh_priv_.advertise<sensor_msgs::Imu>("imu/data", 10);
+	if (publish_pose_) imu_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("imu/pose", 10);
 
 	service_reset_ = service_reset_ = nh_priv_.advertiseService("reset_kf", &imuNode::srvResetKF,this);
 
 	if (publish_gps_) gps_pub_ = nh_priv_.advertise<sensor_msgs::NavSatFix>("gps/fix", 100);
-	if (publish_gps_as_odom_) gps_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("gps/odom", 100);
+	if (publish_gps_as_odom_) gps_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("gps/odom", 10);
 
-	if (publish_nav_odom_) nav_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("nav/odom", 100);
-	if (publish_nav_pose_) nav_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("nav/pose", 100);
+	if (publish_nav_odom_) nav_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("nav/odom", 10);
+	if (publish_nav_pose_) nav_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("nav/pose", 10);
+	if (publish_nav_fix_) nav_fix_pub_ = nh_priv_.advertise<sensor_msgs::NavSatFix>("nav/fix", 10);
 
 }
 
@@ -142,7 +144,7 @@ bool imuNode::init() {
 	start();
 
 	ROS_INFO("KF initialization");
-	if (!imu_.initKalmanFilter((uint32_t)declination_)) {
+	if (!imu_.initKalmanFilter(declination_)) {
 
 		printErrMsgs("KF initialization");
 		return false;
@@ -301,7 +303,7 @@ void imuNode::spin() {
 
 			nav_odom.pose.pose.position.x = easting;
 			nav_odom.pose.pose.position.y = northing;
-			nav_odom.pose.pose.position.y = n.est_height;
+			nav_odom.pose.pose.position.z = n.est_height;
 
 			float yaw = n.est_y;
 

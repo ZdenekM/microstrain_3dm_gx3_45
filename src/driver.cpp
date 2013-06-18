@@ -576,6 +576,15 @@ float IMU::extractFloat(char* addr) {
   return tmp;
 }
 
+void IMU::encodeFloat(tbyte_array& arr, float in) {
+
+  arr.push_back(*((unsigned char*)(&in) + 3));
+  arr.push_back(*((unsigned char*)(&in) + 2));
+  arr.push_back(*((unsigned char*)(&in) + 1));
+  arr.push_back(*((unsigned char*)(&in)));
+
+}
+
 double IMU::extractDouble(char* addr) {
 
   double tmp;
@@ -737,7 +746,7 @@ bool IMU::setAHRSMsgFormat() {
 
 }
 
-bool IMU::initKalmanFilter(uint32_t decl) {
+bool IMU::initKalmanFilter(float decl) {
 
 	tbyte_array data;
 
@@ -748,10 +757,12 @@ bool IMU::initKalmanFilter(uint32_t decl) {
 	data.push_back(0x06);
 	data.push_back(CMD_NAV_SET_INIT_FROM_AHRS);
 
-	data.push_back((decl>>16)&0xff); // MSB
+	/*data.push_back((decl>>16)&0xff); // MSB
 	data.push_back((decl>>8)&0xff);
 	data.push_back((decl>>4)&0xff);
-	data.push_back((decl)&0xff); // LSB
+	data.push_back((decl)&0xff); // LSB*/
+
+	encodeFloat(data,decl);
 
 	crc(data);
 	write(data);

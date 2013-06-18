@@ -263,7 +263,7 @@ namespace microstrain_3dm_gx3_45 {
 
       bool resume();
 
-      bool initKalmanFilter(uint32_t decl);
+      bool initKalmanFilter(float decl);
 
       bool pollAHRS();
 
@@ -350,7 +350,7 @@ namespace microstrain_3dm_gx3_45 {
 
       float extractFloat(char* addr);
       double extractDouble(char* addr);
-
+      void encodeFloat(tbyte_array& arr, float in);
 
   };
 

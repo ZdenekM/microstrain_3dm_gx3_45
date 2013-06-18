@@ -2,9 +2,11 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/NavSatFix.h"
+#include "nav_msgs/Odometry.h"
 #include "std_srvs/Empty.h"
 #include "tf/transform_datatypes.h"
 #include <tf/LinearMath/Matrix3x3.h>
+#include <gps_common/conversions.h>
 
 #ifndef NODE_H_
 #define NODE_H_
@@ -38,11 +40,13 @@ class imuNode {
 		bool inited_;
 
 		std::string frame_id_;
+		std::string child_frame_id_;
 
 		ros::Publisher imu_data_pub_;
 
 		ros::Publisher imu_pose_pub_;
 		ros::Publisher gps_pub_;
+		ros::Publisher gps_odom_pub_;
 
 		bool start();
 		bool stop();
@@ -60,6 +64,9 @@ class imuNode {
 		bool publish_pose_;
 		bool publish_imu_;
 		bool publish_gps_;
+		bool publish_gps_as_odom_;
+
+		bool gps_fix_available_;
 
 	private:
 

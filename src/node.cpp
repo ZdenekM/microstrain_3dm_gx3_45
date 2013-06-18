@@ -20,11 +20,13 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<int>("~baud_rate",baud_rate_,115200);
 	param::param<int>("~declination",declination_,0);
 	param::param<string>("~frame_id",frame_id_,"/imu");
+	param::param<string>("~child_frame_id",child_frame_id_,"/base_footprint");
 	param::param<float>("~rate",rate_,10.0);
 
 	param::param<bool>("~publish_pose",publish_pose_,true);
 	param::param<bool>("~publish_imu",publish_imu_,true);
 	param::param<bool>("~publish_gps",publish_gps_,true);
+	param::param<bool>("~publish_gps_as_odom",publish_gps_as_odom_,true);
 
 	param::param("linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
 	param::param("orientation_stdev", orientation_stdev_, 0.035);
@@ -32,6 +34,8 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	started_ = false;
 	inited_ = false;
+
+	gps_fix_available_ = false;
 
 	if (!imu_.openPort(port_,(unsigned int)baud_rate_)) {
 
@@ -44,7 +48,8 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	service_reset_ = service_reset_ = nh_priv_.advertiseService("reset_kf", &imuNode::srvResetKF,this);
 
-	if (publish_gps_) gps_pub_ = nh_priv_.advertise<sensor_msgs::NavSatFix>("gps", 100);
+	if (publish_gps_) gps_pub_ = nh_priv_.advertise<sensor_msgs::NavSatFix>("gps/fix", 100);
+	if (publish_gps_as_odom_) gps_odom_pub_ = nh_priv_.advertise<nav_msgs::Odometry>("gps/odom", 100);
 
 }
 
@@ -65,6 +70,7 @@ bool imuNode::init() {
 
 	started_ = false;
 
+	ROS_INFO("Pinging device");
 	imu_.setTimeout(posix_time::seconds(0.5));
 	if (!imu_.ping()) {
 
@@ -73,6 +79,7 @@ bool imuNode::init() {
 
 	}
 
+	ROS_INFO("Setting to idle");
 	if (!imu_.setToIdle()) {
 
 		printErrMsgs("Setting to idle");
@@ -80,6 +87,7 @@ bool imuNode::init() {
 
 	}
 
+	ROS_INFO("Checking status");
 	if (!imu_.devStatus()) {
 
 		printErrMsgs("Checking status");
@@ -87,6 +95,7 @@ bool imuNode::init() {
 
 	}
 
+	ROS_INFO("Disabling all streams");
 	if (!imu_.disAllStreams()) {
 
 		printErrMsgs("Disabling all streams");
@@ -94,12 +103,14 @@ bool imuNode::init() {
 
 	}
 
+	ROS_INFO("Device self test");
 	if (!imu_.selfTest()) {
 
 		printErrMsgs("Device self test");
 		return false;
 	}
 
+	ROS_INFO("Setting AHRS msg format");
 	if (!imu_.setAHRSMsgFormat()) {
 
 		printErrMsgs("Setting AHRS msg format");
@@ -107,6 +118,7 @@ bool imuNode::init() {
 
 	}
 
+	ROS_INFO("Setting GPS msg format");
 	if (!imu_.setGPSMsgFormat()) {
 
 			printErrMsgs("Setting GPS msg format");
@@ -114,6 +126,17 @@ bool imuNode::init() {
 
 		}
 
+	ROS_INFO("Setting NAV msg format");
+	if (!imu_.setNAVMsgFormat()) {
+
+		printErrMsgs("Setting NAV msg format");
+		return false;
+
+	}
+
+	start();
+
+	ROS_INFO("KF initialization");
 	if (!imu_.initKalmanFilter((uint32_t)declination_)) {
 
 		printErrMsgs("KF initialization");
@@ -156,8 +179,6 @@ bool imuNode::stop() {
 
 void imuNode::spin() {
 
-	start();
-
 	Rate r(rate_);
 
 	geometry_msgs::PoseStamped ps;
@@ -186,12 +207,33 @@ void imuNode::spin() {
 	sensor_msgs::NavSatFix gps;
 
 	gps.header.frame_id = frame_id_;
+	gps.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
+
+	nav_msgs::Odometry gps_odom;
+
+	gps_odom.header.frame_id = frame_id_;
+	gps_odom.child_frame_id = child_frame_id_;
+	gps_odom.pose.pose.orientation.x = 1; // identity quaternion
+	gps_odom.pose.pose.orientation.y = 0;
+	gps_odom.pose.pose.orientation.z = 0;
+	gps_odom.pose.pose.orientation.w = 0;
+	gps_odom.pose.covariance[21] = 99999; // rot x
+	gps_odom.pose.covariance[28] = 99999; // rot y
+	gps_odom.pose.covariance[35] = 99999; // rot z
+
 
 	ROS_INFO("Start polling device.");
 
 	int gps_msg_cnt = 0;
 
 	while(ok()) {
+
+		// just for testing
+		if (!imu_.pollNAV()) {
+
+			printErrMsgs("NAV");
+
+		}
 
 		if (publish_imu_ || publish_pose_) {
 
@@ -203,9 +245,10 @@ void imuNode::spin() {
 
 		}
 
-		tahrs q = imu_.getAHRS();
 
 		if (publish_imu_ && imu_data_pub_.getNumSubscribers() > 0) {
+
+			tahrs q = imu_.getAHRS();
 
 			imu.header.stamp.fromNSec(q.time);
 
@@ -230,6 +273,8 @@ void imuNode::spin() {
 
 		if (publish_pose_ && imu_pose_pub_.getNumSubscribers() > 0) {
 
+			tahrs q = imu_.getAHRS();
+
 			//ps.header.stamp.fromBoost(q.time);
 			ps.header.stamp.fromNSec(q.time);
 
@@ -243,7 +288,7 @@ void imuNode::spin() {
 
 		}
 
-		if (publish_gps_ && gps_pub_.getNumSubscribers() > 0) {
+		if (publish_gps_ || publish_gps_as_odom_) {
 
 			if (!imu_.pollGPS()) {
 
@@ -252,7 +297,29 @@ void imuNode::spin() {
 			}
 
 			tgps g;
+			g = imu_.getGPS();
 
+			if (g.lat_lon_valid && !gps_fix_available_) {
+
+				ROS_INFO("GPS fix available.");
+				gps_fix_available_ = true;
+
+			}
+
+			if (!g.lat_lon_valid && gps_fix_available_) {
+
+				ROS_WARN("GPS fix lost.");
+				gps_fix_available_ = false;
+
+			}
+
+			if (!g.lat_lon_valid) ROS_WARN_ONCE("GPS fix not available.");
+
+		}
+
+		if (publish_gps_ && gps_pub_.getNumSubscribers() > 0) {
+
+			tgps g;
 			g = imu_.getGPS();
 
 			gps.header.stamp.fromNSec(g.time);
@@ -260,8 +327,20 @@ void imuNode::spin() {
 			gps.latitude = g.latitude;
 			gps.longitude = g.longtitude;
 
-			// TODO status / covariance
-			// TODO publish horizont. accuracy somehow???
+			if (g.lat_lon_valid) gps.status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
+			else gps.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
+
+			if (!g.hor_acc_valid) gps.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
+			else {
+
+				//gps.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+				gps.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
+
+				gps.position_covariance[0] = g.horizontal_accuracy * g.horizontal_accuracy;
+				gps.position_covariance[4] = g.horizontal_accuracy * g.horizontal_accuracy;
+				gps.position_covariance[8] = 100.0; // TODO add this to driver
+
+			}
 
 			gps_pub_.publish(gps);
 
@@ -274,6 +353,40 @@ void imuNode::spin() {
 				else ROS_INFO("GPS horizontal accuracy: %f",g.horizontal_accuracy);
 
 			}
+
+		}
+
+		if (publish_gps_as_odom_ && gps_odom_pub_.getNumSubscribers() > 0) {
+
+			tgps g;
+			g = imu_.getGPS();
+
+			gps_odom.header.stamp.fromNSec(g.time);
+
+			if (g.lat_lon_valid) {
+
+				gps_odom.pose.covariance[0] = g.horizontal_accuracy * g.horizontal_accuracy;
+				gps_odom.pose.covariance[7] = g.horizontal_accuracy * g.horizontal_accuracy;
+				gps_odom.pose.covariance[14] = 99999; // TODO check vertical acc.
+
+			} else {
+
+				gps_odom.pose.covariance[0] = 99999;
+				gps_odom.pose.covariance[7] = 99999;
+				gps_odom.pose.covariance[14] = 99999;
+
+			}
+
+			double northing, easting;
+			string zone;
+
+			gps_common::LLtoUTM(g.latitude, g.longtitude, northing, easting, zone);
+
+			gps_odom.pose.pose.position.x = easting;
+			gps_odom.pose.pose.position.y = northing;
+			gps_odom.pose.pose.position.z = 0.0; // TODO fill this
+
+			gps_odom_pub_.publish(gps_odom);
 
 		}
 
@@ -313,7 +426,14 @@ int main(int argc, char **argv)
   imuNode node;
 
   ROS_INFO("Initializing.");
-  if (!node.init()) return 0;
+  if (!node.init()) {
+
+	  ROS_ERROR("Initialization failed. Please check logs.");
+	  return 0;
+
+  }
+
+  ROS_INFO("Initialization completed.");
 
   node.spin();
 

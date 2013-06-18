@@ -5,6 +5,7 @@
 #include <boost/asio/serial_port.hpp> 
 #include <boost/asio.hpp>
 #include <boost/utility.hpp>
+#include <boost/lexical_cast.hpp>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
@@ -48,14 +49,67 @@ namespace microstrain_3dm_gx3_45 {
 		double latitude;
 		double longtitude;
 
+		//double height;
+
 		float horizontal_accuracy;
+		//float vertical_accuracy;
 
 		bool lat_lon_valid;
 		bool hor_acc_valid;
+		//bool height_valid;
+
 
 		uint64_t time;
 
 	} tgps;
+
+	typedef struct {
+
+		uint16_t filter_state; // Filter Status (0x82, 0x10) -> 8 B
+		uint16_t filter_status_flags;
+
+		double est_latitude; // Estimated LLH Position (0x82, 0x01) -> 28 B
+		double est_longtitude;
+		double est_height;
+		bool est_llh_valid;
+
+		float est_vel_north; // Estimated NED Velocity (0x82, 0x02) -> 16 B
+		float est_vel_east;
+		float est_vel_down;
+		bool est_ned_valid;
+
+		float est_r; // Estimated Orientation, Euler Angles (0x82, 0x05) -> 16 B
+		float est_p;
+		float est_y;
+		bool est_rpy_valid;
+
+		float est_north_pos_unc; // Estimated LLH Position Uncertainty (0x82, 0x08) -> 16 B
+		float est_east_pos_unc;
+		float est_down_pos_unc;
+		bool est_pos_unc_valid;
+
+		float est_north_vel_unc; // Estimated NED Velocity Uncertainty (0x82, 0x09) -> 16 B
+		float est_east_vel_unc;
+		float est_down_vel_unc;
+		bool est_vel_unc_valid;
+
+		float est_r_unc; // Estimated Attitude Uncertainty, Euler Angles (0x82, 0x0A) -> 16 B
+		float est_p_unc;
+		float est_y_unc;
+		bool est_rpy_unc_valid;
+
+		float est_acc_lin_x; // Estimated Linear Acceleration (0x82, 0x0D) -> 16 B
+		float est_acc_lin_y;
+		float est_acc_lin_z;
+		bool est_acc_lin_valid;
+
+		float est_acc_rot_x; // Estimated Angular Rate (0x82, 0x0E) -> 16 B
+		float est_acc_rot_y;
+		float est_acc_rot_z;
+		bool est_acc_rot_valid;
+
+
+	} tnav;
 
 
 	class timeout_exception: public std::runtime_error
@@ -95,10 +149,12 @@ namespace microstrain_3dm_gx3_45 {
 
 		  CMD_3DM_POLL_AHRS = 0x01,
 		  CMD_3DM_POLL_GPS = 0x02,
+		  CMD_3DM_POLL_NAV = 0x03,
 		  CMD_3DM_DEV_STATUS = 0x64,
 		  CMD_3DM_STREAM_STATE = 0x11,
 		  CMD_3DM_AHRS_MSG_FORMAT = 0x08,
-		  CMD_3DM_GPS_MSG_FORMAT = 0x09
+		  CMD_3DM_GPS_MSG_FORMAT = 0x09,
+		  CMD_3DM_NAV_MSG_FORMAT = 0x0A
 
 	  };
 
@@ -177,6 +233,8 @@ namespace microstrain_3dm_gx3_45 {
 
       bool setGPSMsgFormat();
 
+      bool setNAVMsgFormat();
+
       bool setToIdle();
 
       bool resume();
@@ -186,6 +244,8 @@ namespace microstrain_3dm_gx3_45 {
       bool pollAHRS();
 
       bool pollGPS();
+
+      bool pollNAV();
 
       bool setStream(uint8_t stream, bool state);
 
@@ -246,6 +306,9 @@ namespace microstrain_3dm_gx3_45 {
       ReadSetupParameters setupParameters;
 
       void read(char *data, size_t size);
+      std::string readStringUntil(const std::string& delim="ue");
+
+      void waitForMsg();
 
       void write(const tbyte_array& data);
 

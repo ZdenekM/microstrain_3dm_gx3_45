@@ -34,22 +34,21 @@ bool IMU::openPort(string port, unsigned int baud_rate, boost::asio::serial_port
 
 	if(isOpen()) closePort();
 
-	serial.open(port);
-	serial.set_option(asio::serial_port_base::baud_rate(baud_rate));
-	serial.set_option(opt_parity);
-	serial.set_option(opt_csize);
-	serial.set_option(opt_flow);
-	serial.set_option(opt_stop);
+	try {
 
-	/*try {
-
+		serial.open(port);
+		serial.set_option(asio::serial_port_base::baud_rate(baud_rate));
+		serial.set_option(opt_parity);
+		serial.set_option(opt_csize);
+		serial.set_option(opt_flow);
+		serial.set_option(opt_stop);
 
 	} catch(boost::system::system_error& e) {
 
 		  cout<<"Error: "<<e.what()<<endl;
 		  return false;
 
-	  }*/
+	}
 
 
 	return true;

@@ -41,12 +41,6 @@ imuNode::imuNode() : nh_priv_("~") {
 
 	gps_fix_available_ = false;
 
-	if (!imu_.openPort(port_,(unsigned int)baud_rate_)) {
-
-		ROS_ERROR("Can't open port.");
-
-	}
-
 	if (publish_imu_) imu_data_pub_ = nh_priv_.advertise<sensor_msgs::Imu>("imu/data", 10);
 	if (publish_pose_) imu_pose_pub_ = nh_priv_.advertise<geometry_msgs::PoseStamped>("imu/pose", 10);
 
@@ -75,6 +69,14 @@ bool imuNode::srvResetKF(std_srvs::Empty::Request &req, std_srvs::Empty::Respons
 }
 
 bool imuNode::init() {
+
+
+	if (!imu_.openPort(port_,(unsigned int)baud_rate_)) {
+
+		ROS_ERROR("Can't open port.");
+		return false;
+
+	}
 
 	started_ = false;
 
@@ -186,6 +188,13 @@ bool imuNode::stop() {
 }
 
 void imuNode::spin() {
+
+	if (!imu_.isOpen()) {
+
+		ROS_ERROR("Port is not opened. Can't continue.");
+		return;
+
+	}
 
 	Rate r(rate_);
 

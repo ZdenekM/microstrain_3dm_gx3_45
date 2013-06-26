@@ -9,7 +9,6 @@ using namespace ros;
 
 /*
  * TODOs
- * prepare object instead of this ugly code
  * add some services etc.
  */
 
@@ -23,7 +22,7 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<string>("~child_frame_id",child_frame_id_,"/base_footprint");
 	param::param<float>("~rate",rate_,10.0);
 
-	param::param<bool>("~publish_pose",publish_pose_,true);
+	param::param<bool>("~publish_pose",publish_pose_,true); // TODO make this in form publish/imu/pose
 	param::param<bool>("~publish_imu",publish_imu_,true);
 	param::param<bool>("~publish_gps",publish_gps_,true);
 	param::param<bool>("~publish_gps_as_odom",publish_gps_as_odom_,true);

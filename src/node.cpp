@@ -296,7 +296,7 @@ void imuNode::spin() {
 			yaw+=M_PIl;
 			if (yaw > M_PIl) yaw-=2*M_PIl;
 
-			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-n.est_p, n.est_p, -yaw), nav_pose.pose.orientation);
+			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-n.est_r, n.est_p, -yaw), nav_pose.pose.orientation);
 
 			nav_pose_pub_.publish(nav_pose);
 
@@ -324,7 +324,7 @@ void imuNode::spin() {
 			yaw+=M_PIl;
 			if (yaw > M_PIl) yaw-=2*M_PIl;
 
-			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-n.est_p, n.est_p, -yaw), nav_odom.pose.pose.orientation);
+			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-n.est_r, n.est_p, -yaw), nav_odom.pose.pose.orientation);
 
 			if (n.est_pos_unc_valid) {
 
@@ -418,7 +418,7 @@ void imuNode::spin() {
 			yaw+=M_PIl;
 			if (yaw > M_PIl) yaw-=2*M_PIl;
 
-			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-q.p, q.p, -yaw), imu.orientation);
+			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-q.r, q.p, -yaw), imu.orientation);
 
 			imu_data_pub_.publish(imu);
 
@@ -437,7 +437,7 @@ void imuNode::spin() {
 			yaw+=M_PIl;
 			if (yaw > M_PIl) yaw-=2*M_PIl;
 
-			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-q.p, q.p, -yaw),ps.pose.orientation);
+			tf::quaternionTFToMsg(tf::createQuaternionFromRPY(-q.r, q.p, -yaw),ps.pose.orientation);
 
 			imu_pose_pub_.publish(ps);
 

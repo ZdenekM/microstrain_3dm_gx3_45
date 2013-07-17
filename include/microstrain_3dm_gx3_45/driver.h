@@ -222,7 +222,7 @@ namespace microstrain_3dm_gx3_45 {
 
 	  };
     
-      IMU();
+      IMU(int rate);
 
       bool openPort(std::string port, unsigned int baud_rate, boost::asio::serial_port_base::parity opt_parity=
               boost::asio::serial_port_base::parity(
@@ -282,6 +282,8 @@ namespace microstrain_3dm_gx3_45 {
     private:
 
     protected:
+    
+      int rate_;
 
       tahrs ahrs_data_;
       tgps gps_data_;

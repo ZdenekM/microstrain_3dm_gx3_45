@@ -10,10 +10,12 @@ using namespace boost;
 
 
 
-IMU::IMU() : io(), serial(io), timer(io), timeout(posix_time::seconds(0)) {
+IMU::IMU(int rate) : io(), serial(io), timer(io), timeout(posix_time::seconds(0)) {
 
   sync1 = 0x75;
   sync2 = 0x65;
+  
+  rate_ = rate; // TODO do some check if the value is reasonable
 
   comm_mode = -1;
 
@@ -614,39 +616,39 @@ bool IMU::setNAVMsgFormat() {
 
 	data.push_back(0x10); // Filter Status (0x82, 0x10) -> 8 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x01); // Estimated LLH Position (0x82, 0x01) -> 28 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x02); // Estimated NED Velocity (0x82, 0x02) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x05); // Estimated Orientation, Euler Angles (0x82, 0x05) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x08);  // Estimated LLH Position Uncertainty (0x82, 0x08) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x09); // Estimated NED Velocity Uncertainty (0x82, 0x09) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x0A); // Estimated Attitude Uncertainty, Euler Angles (0x82, 0x0A) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x0D); // Estimated Linear Acceleration (0x82, 0x0D) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	data.push_back(0x0E); // Estimated Angular Rate (0x82, 0x0E) -> 16 B
 	data.push_back(0x0);
-	data.push_back(0x1);
+	data.push_back(100/rate_);
 
 	crc(data);
 	write(data);
@@ -713,15 +715,15 @@ bool IMU::setAHRSMsgFormat() {
 
 	data.push_back(0x04); // accelerometer vector
 	data.push_back(0x0);
-	data.push_back(0x14); // 20 Hz
+	data.push_back(100/rate_); // 20 Hz
 
 	data.push_back(0x05); // gyro vector
 	data.push_back(0x0);
-	data.push_back(0x14); // 20 Hz
+	data.push_back(100/rate_); // 20 Hz
 
 	data.push_back(0x0C); // euler angles
 	data.push_back(0x0);
-	data.push_back(0x14); // 20 Hz
+	data.push_back(100/rate_); // rate decimation -> 20 Hz
 
 	crc(data);
 	write(data);

@@ -19,7 +19,7 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<int>("~baud_rate",baud_rate_,115200);
 	param::param<float>("~declination",declination_, 3.8); // http://www.ngdc.noaa.gov/geomag-web/#declination
 	param::param<string>("~frame_id",frame_id_,"/imu_link");
-	param::param<string>("~child_frame_id",child_frame_id_,"/base_footprint");
+	param::param<string>("~child_frame_id",child_frame_id_,"/imu_link");
 	param::param<float>("~rate",rate_,10.0);
 
 	param::param<bool>("~publish_pose",publish_pose_,true); // TODO make this in form publish/imu/pose
@@ -31,9 +31,11 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<bool>("~publish_nav_pose",publish_nav_pose_,true);
 	param::param<bool>("~publish_nav_fix",publish_nav_fix_,true);
 
-	param::param("linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
-	param::param("orientation_stdev", orientation_stdev_, 0.035);
-	param::param("angular_velocity_stdev", angular_velocity_stdev_, 0.012);
+	param::param("~linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
+	param::param("~orientation_stdev", orientation_stdev_, 0.035);
+	param::param("~angular_velocity_stdev", angular_velocity_stdev_, 0.012);
+	
+	imu_.reset(new IMU((int)floor(rate_)));
 
 	started_ = false;
 	inited_ = false;
@@ -59,9 +61,9 @@ bool imuNode::srvResetKF(std_srvs::Empty::Request &req, std_srvs::Empty::Respons
 
 	ROS_INFO("Resetting KF.");
 
-	if (!imu_.setToIdle()) ROS_ERROR("%s",imu_.getLastError().c_str());
-	if (!imu_.initKalmanFilter(declination_)) ROS_ERROR("%s",imu_.getLastError().c_str());
-	if (!imu_.resume()) ROS_ERROR("%s",imu_.getLastError().c_str());
+	if (!imu_->setToIdle()) ROS_ERROR("%s",imu_->getLastError().c_str());
+	if (!imu_->initKalmanFilter(declination_)) ROS_ERROR("%s",imu_->getLastError().c_str());
+	if (!imu_->resume()) ROS_ERROR("%s",imu_->getLastError().c_str());
 
 	return true;
 
@@ -70,7 +72,7 @@ bool imuNode::srvResetKF(std_srvs::Empty::Request &req, std_srvs::Empty::Respons
 bool imuNode::init() {
 
 
-	if (!imu_.openPort(port_,(unsigned int)baud_rate_)) {
+	if (!imu_->openPort(port_,(unsigned int)baud_rate_)) {
 
 		ROS_ERROR("Can't open port.");
 		return false;
@@ -80,8 +82,8 @@ bool imuNode::init() {
 	started_ = false;
 
 	ROS_INFO("Pinging device");
-	imu_.setTimeout(posix_time::seconds(0.5));
-	if (!imu_.ping()) {
+	imu_->setTimeout(posix_time::seconds(0.5));
+	if (!imu_->ping()) {
 
 		printErrMsgs("Pinging device");
 		return false;
@@ -89,7 +91,7 @@ bool imuNode::init() {
 	}
 
 	ROS_INFO("Setting to idle");
-	if (!imu_.setToIdle()) {
+	if (!imu_->setToIdle()) {
 
 		printErrMsgs("Setting to idle");
 		return false;
@@ -97,7 +99,7 @@ bool imuNode::init() {
 	}
 
 	ROS_INFO("Checking status");
-	if (!imu_.devStatus()) {
+	if (!imu_->devStatus()) {
 
 		printErrMsgs("Checking status");
 		return false;
@@ -105,7 +107,7 @@ bool imuNode::init() {
 	}
 
 	ROS_INFO("Disabling all streams");
-	if (!imu_.disAllStreams()) {
+	if (!imu_->disAllStreams()) {
 
 		printErrMsgs("Disabling all streams");
 		return false;
@@ -113,14 +115,14 @@ bool imuNode::init() {
 	}
 
 	ROS_INFO("Device self test");
-	if (!imu_.selfTest()) {
+	if (!imu_->selfTest()) {
 
 		printErrMsgs("Device self test");
 		return false;
 	}
 
 	ROS_INFO("Setting AHRS msg format");
-	if (!imu_.setAHRSMsgFormat()) {
+	if (!imu_->setAHRSMsgFormat()) {
 
 		printErrMsgs("Setting AHRS msg format");
 		return false;
@@ -128,7 +130,7 @@ bool imuNode::init() {
 	}
 
 	ROS_INFO("Setting GPS msg format");
-	if (!imu_.setGPSMsgFormat()) {
+	if (!imu_->setGPSMsgFormat()) {
 
 			printErrMsgs("Setting GPS msg format");
 			return false;
@@ -136,7 +138,7 @@ bool imuNode::init() {
 		}
 
 	ROS_INFO("Setting NAV msg format");
-	if (!imu_.setNAVMsgFormat()) {
+	if (!imu_->setNAVMsgFormat()) {
 
 		printErrMsgs("Setting NAV msg format");
 		return false;
@@ -146,7 +148,7 @@ bool imuNode::init() {
 	start();
 
 	ROS_INFO("KF initialization");
-	if (!imu_.initKalmanFilter(declination_)) {
+	if (!imu_->initKalmanFilter(declination_)) {
 
 		printErrMsgs("KF initialization");
 		return false;
@@ -160,7 +162,7 @@ bool imuNode::init() {
 
 bool imuNode::start() {
 
-	if (!imu_.resume()) {
+	if (!imu_->resume()) {
 
 			printErrMsgs("Resuming");
 			return false;
@@ -174,7 +176,7 @@ bool imuNode::start() {
 
 bool imuNode::stop() {
 
-	if (!imu_.setToIdle()) {
+	if (!imu_->setToIdle()) {
 
 		printErrMsgs("To idle");
 		return false;
@@ -188,7 +190,7 @@ bool imuNode::stop() {
 
 void imuNode::spin() {
 
-	if (!imu_.isOpen()) {
+	if (!imu_->isOpen()) {
 
 		ROS_ERROR("Port is not opened. Can't continue.");
 		return;
@@ -236,7 +238,7 @@ void imuNode::spin() {
 
 	nav_msgs::Odometry gps_odom;
 
-	gps_odom.header.frame_id = frame_id_;
+	gps_odom.header.frame_id = "/odom"; // TODO make conf.
 	gps_odom.child_frame_id = child_frame_id_;
 	gps_odom.pose.pose.orientation.x = 1; // identity quaternion
 	gps_odom.pose.pose.orientation.y = 0;
@@ -248,7 +250,7 @@ void imuNode::spin() {
 
 	nav_msgs::Odometry nav_odom;
 
-	nav_odom.header.frame_id = frame_id_;
+	nav_odom.header.frame_id = "/odom";
 	nav_odom.child_frame_id = child_frame_id_;
 
 
@@ -261,7 +263,7 @@ void imuNode::spin() {
 		if (publish_nav_odom_ || publish_nav_pose_ || publish_nav_fix_) {
 
 			// just for testing
-			if (!imu_.pollNAV()) {
+			if (!imu_->pollNAV()) {
 
 				printErrMsgs("NAV");
 
@@ -274,7 +276,7 @@ void imuNode::spin() {
 
 		if (publish_imu_ || publish_pose_) {
 
-			if (!imu_.pollAHRS()) {
+			if (!imu_->pollAHRS()) {
 
 				printErrMsgs("AHRS");
 
@@ -287,7 +289,7 @@ void imuNode::spin() {
 
 			ROS_INFO_ONCE("Publishing NAV as Pose.");
 
-			tnav n = imu_.getNAV();
+			tnav n = imu_->getNAV();
 
 			nav_pose.header.stamp.fromNSec(n.time);
 
@@ -306,18 +308,28 @@ void imuNode::spin() {
 
 			ROS_INFO_ONCE("Publishing NAV as Odometry.");
 
-			tnav n = imu_.getNAV();
+			tnav n = imu_->getNAV();
 
 			nav_odom.header.stamp.fromNSec(n.time);
 
 			double northing, easting;
 			string zone;
+			
+			if (n.est_latitude != 0 && n.est_longtitude != 0) {
 
-			gps_common::LLtoUTM(n.est_latitude, n.est_longtitude, northing, easting, zone);
+			  gps_common::LLtoUTM(n.est_latitude, n.est_longtitude, northing, easting, zone);
 
-			nav_odom.pose.pose.position.x = easting;
-			nav_odom.pose.pose.position.y = northing;
-			nav_odom.pose.pose.position.z = n.est_height;
+			  nav_odom.pose.pose.position.x = easting;
+			  nav_odom.pose.pose.position.y = northing;
+			  nav_odom.pose.pose.position.z = n.est_height;
+			
+			} else {
+			
+			  nav_odom.pose.pose.position.x = 0;
+			  nav_odom.pose.pose.position.y = 0;
+			  nav_odom.pose.pose.position.z = 0;
+			
+			}
 
 			float yaw = n.est_y;
 
@@ -401,7 +413,7 @@ void imuNode::spin() {
 
 			ROS_INFO_ONCE("Publishing IMU data.");
 
-			tahrs q = imu_.getAHRS();
+			tahrs q = imu_->getAHRS();
 
 			imu.header.stamp.fromNSec(q.time);
 
@@ -415,6 +427,7 @@ void imuNode::spin() {
 
 			float yaw = q.y;
 
+      // TODO is this needed?
 			yaw+=M_PIl;
 			if (yaw > M_PIl) yaw-=2*M_PIl;
 
@@ -428,7 +441,7 @@ void imuNode::spin() {
 
 			ROS_INFO_ONCE("Publishing IMU data as PoseStamped.");
 
-			tahrs q = imu_.getAHRS();
+			tahrs q = imu_->getAHRS();
 
 			//ps.header.stamp.fromBoost(q.time);
 			ps.header.stamp.fromNSec(q.time);
@@ -445,14 +458,14 @@ void imuNode::spin() {
 
 		if (publish_gps_ || publish_gps_as_odom_ || publish_nav_fix_ || publish_nav_odom_) {
 
-			if (!imu_.pollGPS()) {
+			if (!imu_->pollGPS()) {
 
 				printErrMsgs("GPS");
 
 			}
 
 			tgps g;
-			g = imu_.getGPS();
+			g = imu_->getGPS();
 
 			if (!g.lat_lon_valid) ROS_WARN_ONCE("GPS fix not available.");
 
@@ -491,7 +504,7 @@ void imuNode::spin() {
 
 			ROS_INFO_ONCE("Publishing NAV as NavSatFix.");
 
-			tnav n = imu_.getNAV();
+			tnav n = imu_->getNAV();
 
 			nav_fix.header.stamp.fromNSec(n.time);
 
@@ -516,7 +529,7 @@ void imuNode::spin() {
 			ROS_INFO_ONCE("Publishing GPS as NavSatFix.");
 
 			tgps g;
-			g = imu_.getGPS();
+			g = imu_->getGPS();
 
 			gps.header.stamp.fromNSec(g.time);
 
@@ -547,7 +560,7 @@ void imuNode::spin() {
 			ROS_INFO_ONCE("Publihing GPS as Odometry.");
 
 			tgps g;
-			g = imu_.getGPS();
+			g = imu_->getGPS();
 
 			gps_odom.header.stamp.fromNSec(g.time);
 
@@ -593,7 +606,7 @@ void imuNode::printErrMsgs(string prefix) {
 
 	while(msg!="") {
 
-	  msg = imu_.getLastError();
+	  msg = imu_->getLastError();
 	  if (msg!="") ROS_ERROR("%s: %s",prefix.c_str(),msg.c_str());
 
   }
@@ -602,7 +615,7 @@ void imuNode::printErrMsgs(string prefix) {
 
 imuNode::~imuNode() {
 
-	imu_.closePort();
+	imu_->closePort();
 
 }
 

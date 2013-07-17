@@ -27,7 +27,7 @@ class imuNode {
 
 	protected:
 
-		IMU imu_;
+		boost::shared_ptr<IMU> imu_;
 
 		ros::NodeHandle nh_;
 		ros::NodeHandle nh_priv_;

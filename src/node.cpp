@@ -515,10 +515,18 @@ void imuNode::spin() {
 			if (n.est_llh_valid) nav_fix.status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
 			else nav_fix.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
 
-			nav_fix.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-			nav_fix.position_covariance[0] = pow(n.est_north_pos_unc,2);
-			nav_fix.position_covariance[4] = pow(n.est_east_pos_unc,2);
-			nav_fix.position_covariance[8] = pow(n.est_down_pos_unc,2);
+			if (n.est_pos_unc_valid) {
+
+				nav_fix.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+				nav_fix.position_covariance[0] = pow(n.est_north_pos_unc,2);
+				nav_fix.position_covariance[4] = pow(n.est_east_pos_unc,2);
+				nav_fix.position_covariance[8] = pow(n.est_down_pos_unc,2);
+
+			} else {
+
+				nav_fix.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
+
+			}
 
 			nav_fix_pub_.publish(nav_fix);
 

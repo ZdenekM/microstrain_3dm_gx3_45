@@ -273,10 +273,10 @@ bool IMU::pollGPS() {
 
 	size_t n = 48; // 44+6, TODO this is really stupid... there must be some parsing etc....
 
-	recv = read(n);
-
 	struct timespec curtime;
 	clock_gettime(CLOCK_REALTIME, &curtime);
+
+	recv = read(n);
 
 	if (!crcCheck(recv)) return false;
 
@@ -322,12 +322,12 @@ bool IMU::pollNAV() {
 
 	size_t n = 148+4; // TODO this is really (?) stupid... there must be some parsing etc....
 
+	struct timespec curtime;
+	clock_gettime(CLOCK_REALTIME, &curtime);
+
 	recv = read(n);
 
 	//cout << (0xff & unsigned(recv[1])) << endl;
-
-	struct timespec curtime;
-	clock_gettime(CLOCK_REALTIME, &curtime);
 
 	if (!crcCheck(recv)) return false;
 
@@ -490,10 +490,10 @@ bool IMU::pollAHRS() {
 
 	size_t n = 46; // TODO this is really stupid... there must be some parsing etc....
 
-	recv = read(n);
-
 	struct timespec curtime;
 	clock_gettime(CLOCK_REALTIME, &curtime);
+
+	recv = read(n);
 
 	if (!crcCheck(recv)) return false;
 

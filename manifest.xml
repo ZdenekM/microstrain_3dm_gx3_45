@@ -12,8 +12,9 @@
   <depend package="sensor_msgs"/>
   <depend package="tf"/>
   <depend package="geometry_msgs"/>
-  <depend package="gps_common"/>
+  <!--depend package="gps_common"/-->
+  <depend package="geodesy"/>
+  <depend package="geographic_msgs"/>
 
 </package>
-
 

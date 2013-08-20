@@ -252,6 +252,7 @@ void imuNode::spin() {
 
 	nav_odom.header.frame_id = "/odom";
 	nav_odom.child_frame_id = child_frame_id_;
+	nav_odom.pose.pose.position.x = nav_odom.pose.pose.position.y = nav_odom.pose.pose.position.z = 0.0;
 
 
 	ROS_INFO("Start polling device.");
@@ -262,7 +263,6 @@ void imuNode::spin() {
 
 		if (publish_nav_odom_ || publish_nav_pose_ || publish_nav_fix_) {
 
-			// just for testing
 			if (!imu_->pollNAV()) {
 
 				printErrMsgs("NAV");
@@ -311,25 +311,34 @@ void imuNode::spin() {
 			tnav n = imu_->getNAV();
 
 			nav_odom.header.stamp.fromNSec(n.time);
-
-			double northing, easting;
-			string zone;
 			
 			if (n.est_latitude != 0 && n.est_longtitude != 0) {
 
-			  gps_common::LLtoUTM(n.est_latitude, n.est_longtitude, northing, easting, zone);
+			   geographic_msgs::GeoPoint pt;
 
-			  nav_odom.pose.pose.position.x = easting;
-			  nav_odom.pose.pose.position.y = northing;
-			  nav_odom.pose.pose.position.z = n.est_height;
+			   pt.latitude = n.est_latitude;
+			   pt.longitude = n.est_longtitude;
+			   pt.altitude = n.est_height;
+
+			   geodesy::UTMPoint utm;
+
+			   geodesy::fromMsg(pt,utm);
+
+			   ROS_INFO_ONCE("UTM zone: %d.",(int)utm.zone);
+
+			  //gps_common::LLtoUTM(n.est_latitude, n.est_longtitude, northing, easting, zone);
+
+			  nav_odom.pose.pose.position.x = utm.easting;
+			  nav_odom.pose.pose.position.y = utm.northing;
+			  nav_odom.pose.pose.position.z = utm.altitude;
 			
-			} else {
+			} /*else {
 			
 			  nav_odom.pose.pose.position.x = 0;
 			  nav_odom.pose.pose.position.y = 0;
 			  nav_odom.pose.pose.position.z = 0;
 			
-			}
+			}*/
 
 			float yaw = n.est_y;
 
@@ -427,7 +436,7 @@ void imuNode::spin() {
 
 			float yaw = q.y;
 
-      // TODO is this needed?
+            // TODO is this needed?
 			yaw+=M_PIl;
 			if (yaw > M_PIl) yaw-=2*M_PIl;
 
@@ -586,13 +595,20 @@ void imuNode::spin() {
 
 			}
 
-			double northing, easting;
-			string zone;
+			geographic_msgs::GeoPoint pt;
 
-			gps_common::LLtoUTM(g.latitude, g.longtitude, northing, easting, zone);
+		    pt.latitude = g.latitude;
+		    pt.longitude = g.longtitude;
+		    pt.altitude = 0;
 
-			gps_odom.pose.pose.position.x = easting;
-			gps_odom.pose.pose.position.y = northing;
+		    geodesy::UTMPoint utm;
+
+		    geodesy::fromMsg(pt,utm);
+
+			//gps_common::LLtoUTM(g.latitude, g.longtitude, northing, easting, zone);
+
+			gps_odom.pose.pose.position.x = utm.easting;
+			gps_odom.pose.pose.position.y = utm.northing;
 			gps_odom.pose.pose.position.z = 0.0; // TODO fill this
 
 			gps_odom_pub_.publish(gps_odom);

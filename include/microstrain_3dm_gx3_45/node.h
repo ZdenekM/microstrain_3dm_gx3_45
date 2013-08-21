@@ -76,6 +76,8 @@ class imuNode {
 		bool publish_nav_pose_;
 		bool publish_nav_fix_;
 
+		bool zero_height_;
+
 		bool gps_fix_available_;
 
 		//bool nav_odom_rel_;

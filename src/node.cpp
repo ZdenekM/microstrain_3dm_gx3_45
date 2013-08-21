@@ -31,6 +31,8 @@ imuNode::imuNode() : nh_priv_("~") {
 	param::param<bool>("~publish_nav_pose",publish_nav_pose_,true);
 	param::param<bool>("~publish_nav_fix",publish_nav_fix_,true);
 
+	param::param<bool>("~zero_height",zero_height_,true);
+
 	param::param("~linear_acceleration_stdev", linear_acceleration_stdev_, 0.098);
 	param::param("~orientation_stdev", orientation_stdev_, 0.035);
 	param::param("~angular_velocity_stdev", angular_velocity_stdev_, 0.012);
@@ -318,7 +320,8 @@ void imuNode::spin() {
 
 			   pt.latitude = n.est_latitude;
 			   pt.longitude = n.est_longtitude;
-			   pt.altitude = n.est_height;
+			   if (!zero_height_) pt.altitude = n.est_height;
+			   else pt.altitude = 0.0;
 
 			   geodesy::UTMPoint utm;
 
@@ -519,7 +522,8 @@ void imuNode::spin() {
 
 			nav_fix.latitude = n.est_latitude;
 			nav_fix.longitude = n.est_longtitude;
-			nav_fix.altitude = n.est_height;
+			if (!zero_height_) nav_fix.altitude = n.est_height;
+			else nav_fix.altitude = 0.0;
 
 			if (n.est_llh_valid) nav_fix.status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
 			else nav_fix.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
@@ -552,6 +556,7 @@ void imuNode::spin() {
 
 			gps.latitude = g.latitude;
 			gps.longitude = g.longtitude;
+			gps.altitude = 0.0;
 
 			if (g.lat_lon_valid) gps.status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
 			else gps.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;

@@ -8,7 +8,7 @@ class GPS2CSV(object):
     
     def __init__(self):
     
-        rospy.Subscriber("gps_in", NavSatFix, self.gpsCallback)
+        rospy.Subscriber("/imu_3dm_node/gps/fix", NavSatFix, self.gpsCallback)
     
         self.csv = open('out.csv','a')
         self.csv.write('timestamp;lat;lon;alt\n')

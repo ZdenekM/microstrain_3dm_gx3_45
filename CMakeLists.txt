@@ -11,8 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 
-
-
 catkin_package(
  CATKIN_DEPENDS 
   roscpp
@@ -23,7 +21,11 @@ catkin_package(
   geographic_msgs
 )
 
-include_directories(include)
+include_directories(
+  include
+  ${catkin_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}
+)
 
 add_library(3dmgx3_45 src/driver.cpp)
 add_executable(imu_driver src/node.cpp)

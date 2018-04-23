@@ -429,9 +429,9 @@ void imuNode::spin() {
 
 			imu.header.stamp.fromNSec(q.time);
 
-			imu.linear_acceleration.x = -q.ax;
-			imu.linear_acceleration.y = q.ay;
-			imu.linear_acceleration.z = -q.az;
+			imu.linear_acceleration.x = -q.ax * 9.80665;
+			imu.linear_acceleration.y =  q.ay * 9.80665;
+			imu.linear_acceleration.z = -q.az * 9.80665;
 
 			imu.angular_velocity.x = -q.gx;
 			imu.angular_velocity.y = q.gy;
